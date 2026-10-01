@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Agent environment and skills
+.agents/
+skills-lock.json
+attachments/
+
+# Logs & temp files
+*.log
+.DS_Store

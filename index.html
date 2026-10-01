@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>UMBRA: The Hollow Maw</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Special+Elite&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="game-container">
+    <!-- Main Render Canvas -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Cinematic Overlays -->
+    <div id="vignette-overlay"></div>
+    <div id="grain-overlay"></div>
+    <div id="flash-overlay"></div>
+
+    <!-- Top Bar Controls (Fullscreen & Mobile Pause) -->
+    <div id="top-bar-controls">
+      <button id="btn-fullscreen" class="cinematic-icon-btn" aria-label="Toggle Fullscreen" title="Toggle Fullscreen">
+        <svg class="icon-expand" viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+        </svg>
+        <svg class="icon-compress hidden" viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+        </svg>
+      </button>
+      <button id="btn-mobile-pause" class="cinematic-icon-btn" aria-label="Pause Menu" title="Pause Menu">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+          <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+        </svg>
+      </button>
+    </div>
+
+    <!-- On-Screen Mobile Touch Controls Layer -->
+    <div id="mobile-controls-layer" class="hidden">
+      <!-- Left Virtual D-Pad / Movement Cluster -->
+      <div class="virtual-dpad">
+        <button id="touch-btn-up" class="touch-btn dpad-btn up" data-action="up" aria-label="Climb Up">▲</button>
+        <div class="dpad-horizontal">
+          <button id="touch-btn-left" class="touch-btn dpad-btn left" data-action="left" aria-label="Move Left">◀</button>
+          <button id="touch-btn-crouch" class="touch-btn dpad-btn down" data-action="crouch" aria-label="Crouch / Crawl">▼</button>
+          <button id="touch-btn-right" class="touch-btn dpad-btn right" data-action="right" aria-label="Move Right">▶</button>
+        </div>
+      </div>
+
+      <!-- Right Action Buttons Cluster -->
+      <div class="virtual-actions">
+        <div class="action-row-secondary">
+          <button id="touch-btn-lighter" class="touch-btn action-pill" data-action="lighter" aria-label="Toggle Lighter">
+            <span class="btn-icon">🔥</span>
+            <span class="btn-text">LIGHT</span>
+          </button>
+          <button id="touch-btn-sprint" class="touch-btn action-pill" data-action="sprint" aria-label="Sprint">
+            <span class="btn-icon">⚡</span>
+            <span class="btn-text">RUN</span>
+          </button>
+          <button id="touch-btn-throw" class="touch-btn action-pill hidden" data-action="throw" aria-label="Throw Distraction">
+            <span class="btn-icon">🎯</span>
+            <span class="btn-text">THROW</span>
+          </button>
+        </div>
+        <div class="action-row-primary">
+          <button id="touch-btn-grab" class="touch-btn action-circle medium" data-action="interact" aria-label="Grab / Interact">
+            <span class="btn-icon">🖐</span>
+            <span class="btn-text">GRAB</span>
+          </button>
+          <button id="touch-btn-jump" class="touch-btn action-circle large" data-action="jump" aria-label="Jump">
+            <span class="btn-icon">⤊</span>
+            <span class="btn-text">JUMP</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- In-Game Contextual HUD -->
+    <div id="hud-container">
+      <div id="interact-prompt" class="hidden">
+        <span class="key-badge">E</span> <span id="interact-text">GRAB</span>
+      </div>
+      <div id="throw-hint" class="hidden">
+        <span class="key-badge">CLICK</span> THROW BOTTLE
+      </div>
+      <div id="stealth-indicator" class="hidden">
+        <div class="stealth-eye"></div>
+        <span class="stealth-label">HIDDEN</span>
+      </div>
+      <div id="checkpoint-toast" class="hidden">
+        <span class="cp-icon">✦</span>
+        <span id="checkpoint-name">CHECKPOINT</span>
+      </div>
+    </div>
+
+    <!-- Chapter Title Card -->
+    <div id="chapter-card" class="hidden">
+      <div class="chapter-number">CHAPTER I</div>
+      <div class="chapter-title">THE WHISPERING WOODS</div>
+      <div class="chapter-subtitle">Some horrors are best left asleep</div>
+    </div>
+
+    <!-- Title Screen -->
+    <div id="title-screen">
+      <div class="title-content">
+        <h1 class="game-logo">UMBRA</h1>
+        <div class="game-tagline">THE HOLLOW MAW</div>
+        <p class="flavor-quote">"In the dark between shadows, only the quiet survive."</p>
+
+        <div class="menu-buttons">
+          <button id="btn-continue" class="cinematic-btn primary hidden">CONTINUE JOURNEY</button>
+          <button id="btn-start" class="cinematic-btn">BEGIN JOURNEY</button>
+          <button id="btn-chapter-select" class="cinematic-btn secondary">SELECT CHAPTER</button>
+          <button id="btn-title-fullscreen" class="cinematic-btn secondary">FULLSCREEN MODE</button>
+          <button id="btn-controls" class="cinematic-btn secondary">CONTROLS & SETTINGS</button>
+        </div>
+
+        <div class="credits-notice">Inspired by Limbo & Little Nightmares</div>
+      </div>
+    </div>
+
+    <!-- Chapter Select Modal -->
+    <div id="chapter-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>SELECT CHAPTER</h2>
+        <div class="chapter-list">
+          <div class="chapter-item" data-chapter="1">
+            <div class="chap-num">ACT I</div>
+            <div class="chap-info">
+              <h3>The Whispering Woods</h3>
+              <p>Misty forests, concealed bear traps, and suspended chasm crossings.</p>
+            </div>
+          </div>
+          <div class="chapter-item" data-chapter="2">
+            <div class="chap-num">ACT II</div>
+            <div class="chap-info">
+              <h3>The Rusted Maw</h3>
+              <p>Subterranean conduits, electrified pools, and sweeping watchtower beams.</p>
+            </div>
+          </div>
+          <div class="chapter-item" data-chapter="3">
+            <div class="chap-num">ACT III</div>
+            <div class="chap-info">
+              <h3>The Caretaker's Domain</h3>
+              <p>Sound lures, grotesque long-limbed stalker stealth, and the final sprint.</p>
+            </div>
+          </div>
+        </div>
+        <button id="btn-close-chapters" class="cinematic-btn secondary">BACK</button>
+      </div>
+    </div>
+
+    <!-- Controls & Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>CONTROLS & SETTINGS</h2>
+        <div class="settings-grid">
+          <div class="control-scheme">
+            <h3>KEYBOARD & MOUSE</h3>
+            <ul>
+              <li><span class="key">A</span> / <span class="key">D</span> or <span class="key">&larr;</span> / <span class="key">&rarr;</span> : Move Left / Right</li>
+              <li><span class="key">W</span> / <span class="key">SPACE</span> or <span class="key">&uarr;</span> : Jump / Climb Up</li>
+              <li><span class="key">S</span> or <span class="key">&darr;</span> : Crouch / Crawl / Drop Down</li>
+              <li><span class="key">SHIFT</span> : Sprint (Noisier)</li>
+              <li><span class="key">E</span> or <span class="key">CTRL</span> : Grab / Push / Pull / Flip Switch</li>
+              <li><span class="key">F</span> or <span class="key">L</span> : Flick Lighter / Lantern</li>
+              <li><span class="key">LEFT CLICK</span> : Aim & Throw Distraction (When holding bottle)</li>
+              <li><span class="key">ESC</span> or <span class="key">P</span> : Pause Menu</li>
+            </ul>
+          </div>
+          <div class="control-scheme">
+            <h3>TOUCH (MOBILE / TABLET)</h3>
+            <ul>
+              <li><span class="key">▲</span> / <span class="key">▼</span> / <span class="key">◀</span> / <span class="key">▶</span> : D-Pad Move / Climb / Crouch</li>
+              <li><span class="key">JUMP</span> : Spring & Vault over Gaps</li>
+              <li><span class="key">GRAB</span> : Push / Pull Crates & Levers</li>
+              <li><span class="key">RUN</span> : Fast Sprint</li>
+              <li><span class="key">LIGHT</span> : Toggle Lighter / Lantern</li>
+              <li><span class="key">THROW</span> : Toss Distraction Bottle</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="audio-toggles">
+          <label>
+            <span>Master Volume</span>
+            <input type="range" id="slider-volume" min="0" max="1" step="0.05" value="0.8">
+          </label>
+          <label>
+            <span>Screen Shake</span>
+            <input type="checkbox" id="check-shake" checked>
+          </label>
+          <label>
+            <span>Film Grain</span>
+            <input type="checkbox" id="check-grain" checked>
+          </label>
+          <label>
+            <span>Touch Controls</span>
+            <input type="checkbox" id="check-touch-controls" checked>
+          </label>
+        </div>
+
+        <button id="btn-close-settings" class="cinematic-btn secondary">CLOSE</button>
+      </div>
+    </div>
+
+    <!-- Pause Menu -->
+    <div id="pause-menu" class="hidden">
+      <div class="pause-box">
+        <h2>PAUSED</h2>
+        <div class="menu-buttons">
+          <button id="btn-resume" class="cinematic-btn">RESUME</button>
+          <button id="btn-restart-checkpoint" class="cinematic-btn secondary">RELOAD CHECKPOINT</button>
+          <button id="btn-pause-settings" class="cinematic-btn secondary">SETTINGS</button>
+          <button id="btn-quit-title" class="cinematic-btn secondary">QUIT TO TITLE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Death Vignette Screen -->
+    <div id="death-screen" class="hidden">
+      <div class="death-text">THE SHADOWS CLAIM YOU</div>
+      <div class="respawn-hint">Respawning at checkpoint...</div>
+    </div>
+
+    <!-- Victory / Ending Screen -->
+    <div id="victory-screen" class="hidden">
+      <div class="victory-content">
+        <h1>BREAK OF DAWN</h1>
+        <p>You slipped from the jaws of the Maw, leaving the shadows behind.</p>
+        <div class="stats-summary" id="stats-summary"></div>
+        <button id="btn-victory-restart" class="cinematic-btn">PLAY AGAIN</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Entry Script -->
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

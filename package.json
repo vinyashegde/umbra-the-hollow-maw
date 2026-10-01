@@ -1,0 +1,22 @@
+{
+  "name": "umbra-the-hollow-maw",
+  "version": "1.0.0",
+  "description": "Atmospheric 2.5D cinematic puzzle-platformer inspired by Limbo and Little Nightmares",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test/verify.js"
+  },
+  "keywords": [
+    "gamedev",
+    "platformer",
+    "puzzle",
+    "limbo",
+    "little-nightmares",
+    "cinematic",
+    "horror"
+  ],
+  "author": "Antigravity",
+  "license": "MIT"
+}
