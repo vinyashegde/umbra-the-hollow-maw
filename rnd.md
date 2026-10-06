@@ -218,6 +218,22 @@ Detailed R&D findings, mechanic deep-dives, edge cases, missing feature implemen
 
 ---
 
+### [RND-26] [VISUAL/SPRITESHEET] High-Definition Silhouette Character Spritesheet
+- **Location:** `assets/player_spritesheet.png`, `assets/player_animations.json`, `src/entities/Player.js:72-88, 592-760`
+- **Feature & Implementation:**
+  1. Generated an authentic, atmospheric 1280x800 transparent RGBA spritesheet (`assets/player_spritesheet.png`) embodying the dark cinematic silhouette art style of *Limbo* and *Little Nightmares*.
+  2. Extracted and normalized 5 complete animation sets into standardized 160x160 cells:
+     - **Row 0: Idle** (6 frames): Subtle breathing, cloak rustle, and piercing glowing white circular eyes with soft ethereal bloom.
+     - **Row 1: Run** (8 frames): Dynamic stride cycle with billowing, flowing ragged cloak trailing backward.
+     - **Row 2: Jump & Airborne** (6 frames): Velocity-mapped launch anticipation, rising leap, apex float, glide descent, and landing recovery.
+     - **Row 3: Crawl & Slide** (6 frames): Low sneak crawl and streamlined slide traversal poses.
+     - **Row 4: Ledge Hang & Mantle** (6 frames): Wall clutch, ledge lip grip, pulling up, and mantle recovery.
+  3. Integrated a responsive animation state machine in `Player.js` with speed-scaled run animation, velocity-mapped jump frames, and dynamic lighter flame rendering attached to the character's hand.
+  4. Preserved procedural vector rendering as an automatic graceful fallback for headless testing and instant initialization before assets load.
+- **Status:** Verified (Test 25).
+
+---
+
 ## 2. Implementation & Verification Tracking
 
 | ID | Component | Status | Notes |
@@ -247,4 +263,6 @@ Detailed R&D findings, mechanic deep-dives, edge cases, missing feature implemen
 | **RND-23** | `Input.js` (Touch Jump Release) | Verified | Unified release synthesis across touch/gamepad/keys |
 | **RND-24** | `Player.js` (Jump Teleport & Thin Form) | Verified | Ledge grab crate immunity, ascent guard, volume squash/stretch & new hang sprite |
 | **RND-25** | `Player.js` / `Physics.js` (Rope Swing & Dismount) | Verified | Grab cooldown (0.35s), targeted impulse, and chasm geometry at x=2110/2360 |
+| **RND-26** | `Player.js` / `assets/` (Player Spritesheet) | Verified | 1280x800 transparent spritesheet, 5 animation rows & state machine |
+
 

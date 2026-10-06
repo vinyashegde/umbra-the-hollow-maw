@@ -1,0 +1,393 @@
+{
+  "frameWidth": 160,
+  "frameHeight": 160,
+  "animations": {
+    "idle": {
+      "fps": 8,
+      "loop": true,
+      "frameCount": 6,
+      "frames": [
+        {
+          "frame": 0,
+          "x": 0,
+          "y": 0,
+          "w": 160,
+          "h": 160,
+          "spriteW": 67,
+          "spriteH": 118,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 1,
+          "x": 160,
+          "y": 0,
+          "w": 160,
+          "h": 160,
+          "spriteW": 68,
+          "spriteH": 118,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 2,
+          "x": 320,
+          "y": 0,
+          "w": 160,
+          "h": 160,
+          "spriteW": 68,
+          "spriteH": 118,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 3,
+          "x": 480,
+          "y": 0,
+          "w": 160,
+          "h": 160,
+          "spriteW": 68,
+          "spriteH": 118,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 4,
+          "x": 640,
+          "y": 0,
+          "w": 160,
+          "h": 160,
+          "spriteW": 68,
+          "spriteH": 118,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 5,
+          "x": 800,
+          "y": 0,
+          "w": 160,
+          "h": 160,
+          "spriteW": 68,
+          "spriteH": 118,
+          "pivotX": 80,
+          "pivotY": 144
+        }
+      ]
+    },
+    "run": {
+      "fps": 12,
+      "loop": true,
+      "frameCount": 8,
+      "frames": [
+        {
+          "frame": 0,
+          "x": 0,
+          "y": 160,
+          "w": 160,
+          "h": 160,
+          "spriteW": 111,
+          "spriteH": 112,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 1,
+          "x": 160,
+          "y": 160,
+          "w": 160,
+          "h": 160,
+          "spriteW": 114,
+          "spriteH": 112,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 2,
+          "x": 320,
+          "y": 160,
+          "w": 160,
+          "h": 160,
+          "spriteW": 128,
+          "spriteH": 112,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 3,
+          "x": 480,
+          "y": 160,
+          "w": 160,
+          "h": 160,
+          "spriteW": 127,
+          "spriteH": 113,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 4,
+          "x": 640,
+          "y": 160,
+          "w": 160,
+          "h": 160,
+          "spriteW": 120,
+          "spriteH": 112,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 5,
+          "x": 800,
+          "y": 160,
+          "w": 160,
+          "h": 160,
+          "spriteW": 124,
+          "spriteH": 112,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 6,
+          "x": 960,
+          "y": 160,
+          "w": 160,
+          "h": 160,
+          "spriteW": 128,
+          "spriteH": 113,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 7,
+          "x": 1120,
+          "y": 160,
+          "w": 160,
+          "h": 160,
+          "spriteW": 111,
+          "spriteH": 113,
+          "pivotX": 80,
+          "pivotY": 144
+        }
+      ]
+    },
+    "jump": {
+      "fps": 9,
+      "loop": false,
+      "frameCount": 6,
+      "frames": [
+        {
+          "frame": 0,
+          "x": 0,
+          "y": 320,
+          "w": 160,
+          "h": 160,
+          "spriteW": 78,
+          "spriteH": 103,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 1,
+          "x": 160,
+          "y": 320,
+          "w": 160,
+          "h": 160,
+          "spriteW": 88,
+          "spriteH": 108,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 2,
+          "x": 320,
+          "y": 320,
+          "w": 160,
+          "h": 160,
+          "spriteW": 114,
+          "spriteH": 110,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 3,
+          "x": 480,
+          "y": 320,
+          "w": 160,
+          "h": 160,
+          "spriteW": 114,
+          "spriteH": 108,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 4,
+          "x": 640,
+          "y": 320,
+          "w": 160,
+          "h": 160,
+          "spriteW": 117,
+          "spriteH": 87,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 5,
+          "x": 800,
+          "y": 320,
+          "w": 160,
+          "h": 160,
+          "spriteW": 86,
+          "spriteH": 101,
+          "pivotX": 80,
+          "pivotY": 144
+        }
+      ]
+    },
+    "crawl": {
+      "fps": 9,
+      "loop": true,
+      "frameCount": 6,
+      "frames": [
+        {
+          "frame": 0,
+          "x": 0,
+          "y": 480,
+          "w": 160,
+          "h": 160,
+          "spriteW": 116,
+          "spriteH": 87,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 1,
+          "x": 160,
+          "y": 480,
+          "w": 160,
+          "h": 160,
+          "spriteW": 118,
+          "spriteH": 87,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 2,
+          "x": 320,
+          "y": 480,
+          "w": 160,
+          "h": 160,
+          "spriteW": 112,
+          "spriteH": 87,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 3,
+          "x": 480,
+          "y": 480,
+          "w": 160,
+          "h": 160,
+          "spriteW": 123,
+          "spriteH": 72,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 4,
+          "x": 640,
+          "y": 480,
+          "w": 160,
+          "h": 160,
+          "spriteW": 109,
+          "spriteH": 76,
+          "pivotX": 80,
+          "pivotY": 144
+        },
+        {
+          "frame": 5,
+          "x": 800,
+          "y": 480,
+          "w": 160,
+          "h": 160,
+          "spriteW": 102,
+          "spriteH": 73,
+          "pivotX": 80,
+          "pivotY": 144
+        }
+      ]
+    },
+    "hang": {
+      "fps": 9,
+      "loop": false,
+      "frameCount": 6,
+      "frames": [
+        {
+          "frame": 0,
+          "x": 0,
+          "y": 640,
+          "w": 160,
+          "h": 160,
+          "spriteW": 57,
+          "spriteH": 114,
+          "pivotX": 80,
+          "pivotY": 24
+        },
+        {
+          "frame": 1,
+          "x": 160,
+          "y": 640,
+          "w": 160,
+          "h": 160,
+          "spriteW": 77,
+          "spriteH": 134,
+          "pivotX": 80,
+          "pivotY": 24
+        },
+        {
+          "frame": 2,
+          "x": 320,
+          "y": 640,
+          "w": 160,
+          "h": 160,
+          "spriteW": 83,
+          "spriteH": 134,
+          "pivotX": 80,
+          "pivotY": 24
+        },
+        {
+          "frame": 3,
+          "x": 480,
+          "y": 640,
+          "w": 160,
+          "h": 160,
+          "spriteW": 84,
+          "spriteH": 133,
+          "pivotX": 80,
+          "pivotY": 24
+        },
+        {
+          "frame": 4,
+          "x": 640,
+          "y": 640,
+          "w": 160,
+          "h": 160,
+          "spriteW": 83,
+          "spriteH": 134,
+          "pivotX": 80,
+          "pivotY": 24
+        },
+        {
+          "frame": 5,
+          "x": 800,
+          "y": 640,
+          "w": 160,
+          "h": 160,
+          "spriteW": 100,
+          "spriteH": 128,
+          "pivotX": 80,
+          "pivotY": 24
+        }
+      ]
+    }
+  }
+}

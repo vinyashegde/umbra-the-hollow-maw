@@ -2,6 +2,10 @@
 // verify.js - Automated Headless Simulation & Physics Assertion Suite
 // =========================================================================
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { PhysicsWorld, VerletRope } from '../src/engine/Physics.js';
 import { Camera } from '../src/engine/Camera.js';
 import { Input } from '../src/engine/Input.js';
@@ -15,6 +19,9 @@ import { LevelManager } from '../src/levels/LevelManager.js';
 import { setupAct1 } from '../src/levels/Act1_Forest.js';
 import { setupAct2 } from '../src/levels/Act2_Maw.js';
 import { setupAct3 } from '../src/levels/Act3_Lair.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 console.log('[TEST] Starting headless game mechanics verification...');
 
@@ -536,7 +543,69 @@ if (player.grabbedRope !== null) {
 }
 console.log('✓ Rope swing impulse & jump dismount re-grab lock prevention verified');
 
+// 25. Player Spritesheet Assets & Animation State Machine (RND-26)
+const spritesheetPath = path.join(__dirname, '../assets/player_spritesheet.png');
+const animJsonPath = path.join(__dirname, '../assets/player_animations.json');
+
+if (!fs.existsSync(spritesheetPath) || fs.statSync(spritesheetPath).size < 1000) {
+  throw new Error('player_spritesheet.png missing or empty in assets!');
+}
+if (!fs.existsSync(animJsonPath)) {
+  throw new Error('player_animations.json missing in assets!');
+}
+const animData = JSON.parse(fs.readFileSync(animJsonPath, 'utf8'));
+const requiredAnims = ['idle', 'run', 'jump', 'crawl', 'hang'];
+for (const animName of requiredAnims) {
+  if (!animData.animations[animName] || animData.animations[animName].frameCount < 6) {
+    throw new Error(`Animation ${animName} missing or invalid frameCount in player_animations.json!`);
+  }
+}
+
+// Test Player animation state machine transitions
+player.reset(100, 300);
+player.onFloor = true;
+player.vx = 0;
+player.updateAnimation(0.016);
+if (player.currentAnim !== 'idle') {
+  throw new Error(`Expected idle animation on floor when still, got ${player.currentAnim}`);
+}
+
+player.vx = 180;
+player.updateAnimation(0.016);
+if (player.currentAnim !== 'run') {
+  throw new Error(`Expected run animation when moving, got ${player.currentAnim}`);
+}
+
+player.onFloor = false;
+player.vy = -380;
+player.updateAnimation(0.016);
+if (player.currentAnim !== 'jump' || player.animFrame !== 0) {
+  throw new Error(`Expected jump frame 0 on launch, got ${player.currentAnim} frame ${player.animFrame}`);
+}
+
+player.vy = 0;
+player.updateAnimation(0.016);
+if (player.currentAnim !== 'jump' || player.animFrame !== 2) {
+  throw new Error(`Expected jump frame 2 at apex, got ${player.currentAnim} frame ${player.animFrame}`);
+}
+
+player.onFloor = true;
+player.isCrouching = true;
+player.vx = 80;
+player.updateAnimation(0.016);
+if (player.currentAnim !== 'crawl') {
+  throw new Error(`Expected crawl animation when crouching and moving, got ${player.currentAnim}`);
+}
+
+player.isHanging = true;
+player.updateAnimation(0.016);
+if (player.currentAnim !== 'hang') {
+  throw new Error(`Expected hang animation when isHanging, got ${player.currentAnim}`);
+}
+console.log('✓ Player spritesheet assets & animation state machine verified');
+
 console.log('====================================================');
 console.log('All automated simulation tests PASSED with 0 errors!');
 console.log('====================================================');
+
 

@@ -72,6 +72,24 @@ export class Player {
 
     // Light source reference (lighter)
     this.lightSource = null;
+
+    // Spritesheet Animation System
+    this.spriteLoaded = false;
+    this.spriteImage = null;
+    this.currentAnim = 'idle';
+    this.animFrame = 0;
+    this.animTimer = 0;
+
+    if (typeof Image !== 'undefined') {
+      this.spriteImage = new Image();
+      this.spriteImage.src = 'assets/player_spritesheet.png';
+      this.spriteImage.onload = () => {
+        this.spriteLoaded = true;
+      };
+      if (this.spriteImage.complete) {
+        this.spriteLoaded = true;
+      }
+    }
   }
 
   reset(x, y) {
@@ -95,6 +113,9 @@ export class Player {
     this.heldItem = null;
     this.squash = 1.0;
     this.stretch = 1.0;
+    this.currentAnim = 'idle';
+    this.animFrame = 0;
+    this.animTimer = 0;
     if (this.lightSource) {
       this.lightSource.active = this.lighterLit;
     }
@@ -113,6 +134,8 @@ export class Player {
     this.ropeCooldown = 0;
     this.heldItem = null;
     this.isSliding = false;
+    this.currentAnim = 'dead';
+    this.animFrame = 0;
     if (this.lightSource) {
       this.lightSource.active = false;
     }
@@ -397,6 +420,9 @@ export class Player {
       this.lightSource.x = this.x + this.w * 0.5 + this.facing * 8;
       this.lightSource.y = this.y + this.h * 0.45;
     }
+
+    // 12. Update Spritesheet Animation State
+    this.updateAnimation(dt);
   }
 
   checkLedgeGrab(physics, audio) {
@@ -448,6 +474,7 @@ export class Player {
   updateLedgeHang(dt, input, physics, audio, camera, particles) {
     this.vx = 0;
     this.vy = 0;
+    this.updateAnimation(dt);
 
     // Pull up (Mantle) on Jump or Up
     if (input.actions.jumpJustPressed || input.actions.up) {
@@ -561,6 +588,89 @@ export class Player {
       input.consumeJumpBuffer();
       audio.playJump();
     }
+
+    this.updateAnimation(dt);
+  }
+
+  updateAnimation(dt) {
+    let anim = 'idle';
+    let fps = 8;
+    let loop = true;
+
+    if (this.isDead) {
+      anim = 'dead';
+      fps = 0;
+      loop = false;
+    } else if (this.isHanging) {
+      anim = 'hang';
+      fps = 6;
+      loop = false;
+    } else if (this.grabbedRope) {
+      anim = 'crawl';
+      fps = 8;
+      loop = true;
+    } else if (this.isSliding) {
+      anim = 'slide';
+      fps = 10;
+      loop = false;
+    } else if (this.isCrouching) {
+      anim = 'crawl';
+      fps = Math.abs(this.vx) > 10 ? 8 : 0;
+      loop = true;
+    } else if (!this.onFloor) {
+      anim = 'jump';
+      fps = 0; // Velocity-mapped
+    } else if (Math.abs(this.vx) > 10) {
+      anim = 'run';
+      fps = (Math.abs(this.vx) / 160) * 11;
+      loop = true;
+    } else {
+      anim = 'idle';
+      fps = 7;
+      loop = true;
+    }
+
+    if (anim !== this.currentAnim) {
+      this.currentAnim = anim;
+      this.animFrame = 0;
+      this.animTimer = 0;
+    }
+
+    // Advance frame for looping or timed animations
+    if (fps > 0) {
+      this.animTimer += dt;
+      const frameDuration = 1 / fps;
+      if (this.animTimer >= frameDuration) {
+        this.animTimer -= frameDuration;
+        const totalFrames = this.getFrameCount(anim);
+        if (loop) {
+          this.animFrame = (this.animFrame + 1) % totalFrames;
+        } else {
+          this.animFrame = Math.min(totalFrames - 1, this.animFrame + 1);
+        }
+      }
+    } else if (anim === 'jump') {
+      // Velocity-mapped jump animation (6 frames)
+      if (this.vy < -350) this.animFrame = 0; // launch anticipation
+      else if (this.vy < -120) this.animFrame = 1; // rising leap
+      else if (this.vy < 100) this.animFrame = 2; // apex float
+      else if (this.vy < 280) this.animFrame = 3; // glide
+      else if (this.vy < 520) this.animFrame = 4; // fall descent
+      else this.animFrame = 5; // landing anticipation
+    } else if (anim === 'slide') {
+      this.animFrame = 3; // low streamlined crawl frame
+    }
+  }
+
+  getFrameCount(anim) {
+    switch (anim) {
+      case 'idle': return 6;
+      case 'run': return 8;
+      case 'jump': return 6;
+      case 'crawl': return 6;
+      case 'hang': return 6;
+      default: return 6;
+    }
   }
 
   getSurfaceMaterial(physics) {
@@ -573,8 +683,89 @@ export class Player {
     return 'dirt';
   }
 
-  // Render Silhouette Character with Glowing Eyes & Dynamic Cloak
   render(ctx) {
+    if (this.spriteLoaded && this.spriteImage) {
+      this.renderSprite(ctx);
+      return;
+    }
+    this.renderProcedural(ctx);
+  }
+
+  renderSprite(ctx) {
+    if (this.isDead) {
+      ctx.save();
+      ctx.fillStyle = '#08090b';
+      ctx.beginPath();
+      ctx.ellipse(this.x + this.w * 0.5, this.y + this.h - 6, 16, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+
+    ctx.save();
+    ctx.translate(this.x + this.w * 0.5, this.y + this.h);
+    ctx.scale(this.facing * (this.squash || 1), this.stretch || 1);
+
+    const CELL_SIZE = 160;
+    const PIVOT_X = 80;
+    const PIVOT_Y = 144;
+    let row = 0;
+    let col = this.animFrame;
+
+    if (this.currentAnim === 'run') {
+      row = 1;
+    } else if (this.currentAnim === 'jump') {
+      row = 2;
+    } else if (this.currentAnim === 'crawl') {
+      row = 3;
+    } else if (this.currentAnim === 'slide') {
+      row = 3;
+      col = 3;
+    } else if (this.currentAnim === 'hang') {
+      row = 4;
+      col = Math.min(5, Math.max(1, this.animFrame));
+    } else {
+      row = 0; // idle
+    }
+
+    const sx = col * CELL_SIZE;
+    const sy = row * CELL_SIZE;
+    const scale = 44 / 118; // ~0.373 to scale 118px sprite height to 44px character height
+
+    const drawW = CELL_SIZE * scale;
+    const drawH = CELL_SIZE * scale;
+    const drawX = -PIVOT_X * scale;
+    const drawY = -PIVOT_Y * scale;
+
+    ctx.drawImage(this.spriteImage, sx, sy, CELL_SIZE, CELL_SIZE, drawX, drawY, drawW, drawH);
+
+    // Dynamic lighter flame rendering when lit
+    if (this.lighterLit) {
+      const topY = -this.h;
+      const handX = 14;
+      const handY = topY + 22;
+
+      const flameNoise = Math.sin(this.animTime * 25) * 1.5;
+      const flameGrad = ctx.createRadialGradient(handX, handY - 4, 0, handX, handY - 4, 9);
+      flameGrad.addColorStop(0, '#ffffff');
+      flameGrad.addColorStop(0.3, '#ffcc44');
+      flameGrad.addColorStop(0.8, '#ff6611');
+      flameGrad.addColorStop(1, 'rgba(255, 60, 0, 0)');
+
+      ctx.fillStyle = flameGrad;
+      ctx.beginPath();
+      ctx.moveTo(handX - 3, handY);
+      ctx.quadraticCurveTo(handX, handY - 8 + flameNoise, handX, handY - 11 + flameNoise);
+      ctx.quadraticCurveTo(handX, handY - 8 + flameNoise, handX + 3, handY);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  // Fallback Procedural Silhouette Character
+  renderProcedural(ctx) {
     if (this.isDead) {
       // Slumped silhouette on floor
       ctx.save();
