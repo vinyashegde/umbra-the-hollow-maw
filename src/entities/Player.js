@@ -79,6 +79,17 @@ export class Player {
     this.currentAnim = 'idle';
     this.animFrame = 0;
     this.animTimer = 0;
+    this.strideDistance = 0;
+    this.crawlDistance = 0;
+    this.stepDistanceAcc = 0;
+
+    // Animated Torch / Lighter Spritesheet
+    this.torchSpriteLoaded = false;
+    this.torchSpriteImage = null;
+    this.flameFrame = 0;
+    this.flameTimer = 0;
+    this.flameFps = 12;
+    this.emberTimer = 0;
 
     if (typeof Image !== 'undefined') {
       this.spriteImage = new Image();
@@ -88,6 +99,15 @@ export class Player {
       };
       if (this.spriteImage.complete) {
         this.spriteLoaded = true;
+      }
+
+      this.torchSpriteImage = new Image();
+      this.torchSpriteImage.src = 'assets/torch_fire.png';
+      this.torchSpriteImage.onload = () => {
+        this.torchSpriteLoaded = true;
+      };
+      if (this.torchSpriteImage.complete) {
+        this.torchSpriteLoaded = true;
       }
     }
   }
@@ -116,6 +136,12 @@ export class Player {
     this.currentAnim = 'idle';
     this.animFrame = 0;
     this.animTimer = 0;
+    this.strideDistance = 0;
+    this.crawlDistance = 0;
+    this.stepDistanceAcc = 0;
+    this.flameFrame = 0;
+    this.flameTimer = 0;
+    this.emberTimer = 0;
     if (this.lightSource) {
       this.lightSource.active = this.lighterLit;
     }
@@ -397,31 +423,50 @@ export class Player {
     if (res.onFloor && this.vy > 0) this.vy = 0;
     if (res.onCeiling && this.vy < 0) this.vy = 0;
 
-    // 10. Footstep Foley Timing
+    // 10. Footstep Foley Timing - Stride Synchronized
     if (this.onFloor && Math.abs(this.vx) > 20) {
-      this.stepTimer += dt;
-      const stepInterval = this.isSprinting ? 0.28 : (this.isCrouching ? 0.48 : 0.38);
-      if (this.stepTimer >= stepInterval) {
-        this.stepTimer = 0;
-        // Determine surface material under feet
+      const stepDistThreshold = this.isCrouching ? 42 : 68; // Half-cycle stride distance
+      this.stepDistanceAcc = (this.stepDistanceAcc || 0) + Math.abs(this.vx) * dt;
+      if (this.stepDistanceAcc >= stepDistThreshold) {
+        this.stepDistanceAcc -= stepDistThreshold;
         const material = this.getSurfaceMaterial(physics);
         audio.playFootstep(material, this.isSprinting);
       }
     } else {
-      this.stepTimer = 0;
+      this.stepDistanceAcc = 0;
     }
 
     // 11. Squash & Stretch Elastic Decay
     this.squash += (1.0 - this.squash) * (1.0 - Math.exp(-14 * dt));
     this.stretch += (1.0 - this.stretch) * (1.0 - Math.exp(-14 * dt));
 
-    // Update attached dynamic lighter position
-    if (this.lightSource) {
-      this.lightSource.x = this.x + this.w * 0.5 + this.facing * 8;
-      this.lightSource.y = this.y + this.h * 0.45;
+    // Update animated lighter flame progression
+    this.flameTimer += dt;
+    if (this.flameTimer >= 1 / this.flameFps) {
+      this.flameTimer -= 1 / this.flameFps;
+      this.flameFrame = (this.flameFrame + 1) % 8;
     }
 
-    // 12. Update Spritesheet Animation State
+    // Update attached dynamic lighter position to match real-time hand anchor
+    if (this.lightSource) {
+      const hand = this.getHandAnchor();
+      this.lightSource.x = this.x + this.w * 0.5 + this.facing * hand.x;
+      this.lightSource.y = this.y + this.h + hand.y - 10;
+    }
+
+    // Subtle atmospheric ember emission from lighter flame
+    if (this.lighterLit && particles && typeof particles.spawnFlameEmbers === 'function') {
+      this.emberTimer = (this.emberTimer || 0) + dt;
+      if (this.emberTimer >= 0.35) {
+        this.emberTimer = 0;
+        const hand = this.getHandAnchor();
+        const emberX = this.x + this.w * 0.5 + this.facing * hand.x;
+        const emberY = this.y + this.h + hand.y - 12;
+        particles.spawnFlameEmbers(emberX, emberY, 1);
+      }
+    }
+
+    // 12. Update Spritesheet Animation State (Motion-Matched)
     this.updateAnimation(dt);
   }
 
@@ -594,7 +639,7 @@ export class Player {
 
   updateAnimation(dt) {
     let anim = 'idle';
-    let fps = 8;
+    let fps = 4;
     let loop = true;
 
     if (this.isDead) {
@@ -603,30 +648,30 @@ export class Player {
       loop = false;
     } else if (this.isHanging) {
       anim = 'hang';
-      fps = 6;
+      fps = 0;
       loop = false;
     } else if (this.grabbedRope) {
       anim = 'crawl';
-      fps = 8;
+      fps = 6;
       loop = true;
     } else if (this.isSliding) {
       anim = 'slide';
-      fps = 10;
+      fps = 0;
       loop = false;
     } else if (this.isCrouching) {
       anim = 'crawl';
-      fps = Math.abs(this.vx) > 10 ? 8 : 0;
+      fps = 0; // Handled by motion matching below
       loop = true;
     } else if (!this.onFloor) {
       anim = 'jump';
       fps = 0; // Velocity-mapped
     } else if (Math.abs(this.vx) > 10) {
       anim = 'run';
-      fps = (Math.abs(this.vx) / 160) * 11;
+      fps = 0; // Handled by motion matching below
       loop = true;
     } else {
       anim = 'idle';
-      fps = 7;
+      fps = 4.0; // Calm, atmospheric breathing cycle (~1.5s per loop)
       loop = true;
     }
 
@@ -634,20 +679,29 @@ export class Player {
       this.currentAnim = anim;
       this.animFrame = 0;
       this.animTimer = 0;
+      if (anim === 'run') {
+        this.strideDistance = 0;
+      } else if (anim === 'crawl') {
+        this.crawlDistance = 0;
+      }
     }
 
-    // Advance frame for looping or timed animations
-    if (fps > 0) {
-      this.animTimer += dt;
-      const frameDuration = 1 / fps;
-      if (this.animTimer >= frameDuration) {
-        this.animTimer -= frameDuration;
-        const totalFrames = this.getFrameCount(anim);
-        if (loop) {
-          this.animFrame = (this.animFrame + 1) % totalFrames;
-        } else {
-          this.animFrame = Math.min(totalFrames - 1, this.animFrame + 1);
-        }
+    // Motion-matched stride synchronization for grounded movement
+    if (anim === 'run') {
+      // 136px of horizontal floor displacement per 8-frame cycle (17px/frame)
+      const STRIDE_PER_CYCLE = 136;
+      this.strideDistance += Math.abs(this.vx) * dt;
+      const frameIdx = Math.floor((this.strideDistance % STRIDE_PER_CYCLE) / (STRIDE_PER_CYCLE / 8));
+      this.animFrame = frameIdx % 8;
+    } else if (anim === 'crawl') {
+      // 84px of horizontal floor displacement per 6-frame crawl cycle (14px/frame)
+      const CRAWL_PER_CYCLE = 84;
+      if (Math.abs(this.vx) > 10) {
+        this.crawlDistance += Math.abs(this.vx) * dt;
+        const frameIdx = Math.floor((this.crawlDistance % CRAWL_PER_CYCLE) / (CRAWL_PER_CYCLE / 6));
+        this.animFrame = frameIdx % 6;
+      } else {
+        this.animFrame = 0; // steady low crouch pose when stationary
       }
     } else if (anim === 'jump') {
       // Velocity-mapped jump animation (6 frames)
@@ -659,6 +713,21 @@ export class Player {
       else this.animFrame = 5; // landing anticipation
     } else if (anim === 'slide') {
       this.animFrame = 3; // low streamlined crawl frame
+    } else if (anim === 'hang') {
+      this.animFrame = 2; // natural hanging grip frame
+    } else if (fps > 0) {
+      // Time-based frame advancement for idle breathing and rope climbing
+      this.animTimer += dt;
+      const frameDuration = 1 / fps;
+      if (this.animTimer >= frameDuration) {
+        this.animTimer -= frameDuration;
+        const totalFrames = this.getFrameCount(anim);
+        if (loop) {
+          this.animFrame = (this.animFrame + 1) % totalFrames;
+        } else {
+          this.animFrame = Math.min(totalFrames - 1, this.animFrame + 1);
+        }
+      }
     }
   }
 
@@ -681,6 +750,141 @@ export class Player {
       }
     }
     return 'dirt';
+  }
+
+  getHandAnchor() {
+    const HAND_OFFSETS = {
+      idle: [
+        { x: 12.0, y: -29.5 },
+        { x: 12.3, y: -29.8 },
+        { x: 12.3, y: -29.8 },
+        { x: 12.3, y: -29.5 },
+        { x: 12.3, y: -29.8 },
+        { x: 12.3, y: -29.8 }
+      ],
+      run: [
+        { x: 20.1, y: -27.6 },
+        { x: 20.9, y: -29.1 },
+        { x: 23.5, y: -28.0 },
+        { x: 23.1, y: -28.7 },
+        { x: 22.0, y: -28.3 },
+        { x: 22.7, y: -28.3 },
+        { x: 23.5, y: -28.7 },
+        { x: 20.1, y: -28.3 }
+      ],
+      jump: [
+        { x: 14.2, y: -25.7 },
+        { x: 16.0, y: -26.8 },
+        { x: 20.5, y: -27.6 },
+        { x: 20.5, y: -25.0 },
+        { x: 21.2, y: -22.7 },
+        { x: 15.6, y: -26.1 }
+      ],
+      crawl: [
+        { x: 21.2, y: -22.4 },
+        { x: 21.2, y: -22.0 },
+        { x: 20.5, y: -22.4 },
+        { x: 22.4, y: -16.0 },
+        { x: 19.8, y: -19.8 },
+        { x: 18.6, y: -17.2 }
+      ],
+      slide: [
+        { x: 22.4, y: -16.0 }
+      ],
+      hang: [
+        { x: 10.0, y: -35.0 },
+        { x: 9.3, y: -32.8 },
+        { x: 11.9, y: -11.9 },
+        { x: 11.5, y: -10.8 },
+        { x: 9.7, y: -14.9 },
+        { x: 16.4, y: -14.9 }
+      ]
+    };
+
+    const animList = HAND_OFFSETS[this.currentAnim] || HAND_OFFSETS.idle;
+    const frameIdx = Math.min(animList.length - 1, Math.max(0, this.animFrame || 0));
+    return animList[frameIdx] || { x: 12.0, y: -28.0 };
+  }
+
+  renderTorch(ctx, handX, handY) {
+    if (this.torchSpriteLoaded && this.torchSpriteImage) {
+      const CELL_SIZE = 64;
+      const PIVOT_X = 32;
+      const PIVOT_Y = 50;
+      const TORCH_SCALE = 0.44;
+
+      const col = (this.flameFrame || 0) % 8;
+      const sx = col * CELL_SIZE;
+      const sy = 0;
+
+      const drawW = CELL_SIZE * TORCH_SCALE;
+      const drawH = CELL_SIZE * TORCH_SCALE;
+
+      // Draft wind tilt when moving horizontally
+      const windTilt = -(this.vx / 240) * 0.18;
+
+      ctx.save();
+      ctx.translate(handX, handY);
+      if (Math.abs(windTilt) > 0.01) {
+        ctx.rotate(windTilt);
+      }
+      ctx.drawImage(
+        this.torchSpriteImage,
+        sx, sy, CELL_SIZE, CELL_SIZE,
+        -PIVOT_X * TORCH_SCALE, -PIVOT_Y * TORCH_SCALE,
+        drawW, drawH
+      );
+      ctx.restore();
+    } else {
+      // Procedural fallback brass lighter casing & flame
+      ctx.save();
+      ctx.translate(handX, handY);
+
+      // 1. Brass Lighter Case
+      ctx.fillStyle = '#2a221a';
+      ctx.fillRect(-3, -2, 6, 8);
+      ctx.strokeStyle = '#5a4834';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-3, -2, 6, 8);
+
+      // Specular highlight
+      ctx.fillStyle = '#8c744b';
+      ctx.fillRect(-2, -1, 1, 6);
+
+      // Chimney & wick
+      ctx.fillStyle = '#202124';
+      ctx.fillRect(-2, -5, 4, 3);
+      ctx.fillStyle = '#141414';
+      ctx.fillRect(-0.5, -7, 1, 2);
+
+      // 2. Animated Flickering Flame
+      const flameNoise = Math.sin(this.animTime * 22) * 1.5;
+      const flameH = 12 + Math.sin(this.animTime * 18) * 2;
+      const flameY = -7;
+
+      const flameGrad = ctx.createRadialGradient(0, flameY - 4, 0, 0, flameY - 4, 9);
+      flameGrad.addColorStop(0, '#ffffff');
+      flameGrad.addColorStop(0.25, '#ffe044');
+      flameGrad.addColorStop(0.65, '#ff6611');
+      flameGrad.addColorStop(0.9, '#dd2200');
+      flameGrad.addColorStop(1, 'rgba(200, 20, 0, 0)');
+
+      ctx.fillStyle = flameGrad;
+      ctx.beginPath();
+      ctx.moveTo(-3, flameY);
+      ctx.quadraticCurveTo(0, flameY - flameH * 0.7 + flameNoise, flameNoise * 0.8, flameY - flameH);
+      ctx.quadraticCurveTo(0, flameY - flameH * 0.7 + flameNoise, 3, flameY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Blue ignition root arc
+      ctx.fillStyle = 'rgba(60, 160, 255, 0.85)';
+      ctx.beginPath();
+      ctx.arc(0, flameY, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
   }
 
   render(ctx) {
@@ -739,26 +943,10 @@ export class Player {
 
     ctx.drawImage(this.spriteImage, sx, sy, CELL_SIZE, CELL_SIZE, drawX, drawY, drawW, drawH);
 
-    // Dynamic lighter flame rendering when lit
+    // Dynamic lighter flame rendering when lit (anchored to hand position)
     if (this.lighterLit) {
-      const topY = -this.h;
-      const handX = 14;
-      const handY = topY + 22;
-
-      const flameNoise = Math.sin(this.animTime * 25) * 1.5;
-      const flameGrad = ctx.createRadialGradient(handX, handY - 4, 0, handX, handY - 4, 9);
-      flameGrad.addColorStop(0, '#ffffff');
-      flameGrad.addColorStop(0.3, '#ffcc44');
-      flameGrad.addColorStop(0.8, '#ff6611');
-      flameGrad.addColorStop(1, 'rgba(255, 60, 0, 0)');
-
-      ctx.fillStyle = flameGrad;
-      ctx.beginPath();
-      ctx.moveTo(handX - 3, handY);
-      ctx.quadraticCurveTo(handX, handY - 8 + flameNoise, handX, handY - 11 + flameNoise);
-      ctx.quadraticCurveTo(handX, handY - 8 + flameNoise, handX + 3, handY);
-      ctx.closePath();
-      ctx.fill();
+      const hand = this.getHandAnchor();
+      this.renderTorch(ctx, hand.x, hand.y);
     }
 
     ctx.restore();
@@ -922,24 +1110,11 @@ export class Player {
 
     // 5. Hand / Lighter Flame
     if (this.lighterLit) {
-      const handX = this.facing * 12;
-      const handY = topY + 22;
-
-      // Small flickering flame
-      const flameNoise = Math.sin(this.animTime * 25) * 1.5;
-      const flameGrad = ctx.createRadialGradient(handX, handY - 4, 0, handX, handY - 4, 9);
-      flameGrad.addColorStop(0, '#ffffff');
-      flameGrad.addColorStop(0.3, '#ffcc44');
-      flameGrad.addColorStop(0.8, '#ff6611');
-      flameGrad.addColorStop(1, 'rgba(255, 60, 0, 0)');
-
-      ctx.fillStyle = flameGrad;
-      ctx.beginPath();
-      ctx.moveTo(handX - 3, handY);
-      ctx.quadraticCurveTo(handX, handY - 8 + flameNoise, handX, handY - 11 + flameNoise);
-      ctx.quadraticCurveTo(handX, handY - 8 + flameNoise, handX + 3, handY);
-      ctx.closePath();
-      ctx.fill();
+      const hand = this.getHandAnchor();
+      ctx.save();
+      ctx.scale(this.facing, 1);
+      this.renderTorch(ctx, hand.x, hand.y);
+      ctx.restore();
     }
 
     ctx.restore();

@@ -52,6 +52,26 @@ export class ParticleSystem {
     }
   }
 
+  // Spawn atmospheric torch flame embers
+  spawnFlameEmbers(x, y, count = 1) {
+    for (let i = 0; i < count; i++) {
+      const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * 0.8; // gentle upward plume
+      const speed = 18 + Math.random() * 32;
+      this.particles.push({
+        x: x + (Math.random() - 0.5) * 4,
+        y: y + (Math.random() - 0.5) * 4,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 1.0 + Math.random() * 1.5,
+        color: 'rgba(255, 175, 45,',
+        alpha: 0.85,
+        life: 0.35 + Math.random() * 0.3,
+        maxLife: 0.65,
+        gravity: -25 // buoyant thermal rise
+      });
+    }
+  }
+
   // Spawn water splash droplets
   spawnSplash(x, y, count = 12) {
     for (let i = 0; i < count; i++) {

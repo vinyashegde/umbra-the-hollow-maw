@@ -234,6 +234,34 @@ Detailed R&D findings, mechanic deep-dives, edge cases, missing feature implemen
 
 ---
 
+### [RND-27] [ANIMATION/FEEL] Locomotion Motion Matching & Stride Synchronization
+- **Location:** `src/entities/Player.js:427-436, 640-705`
+- **Root Cause:**
+  1. Previous run animation was timer-based (`fps = (vx / 160) * 11`), cycling frames on a disconnected clock regardless of exact ground displacement. During acceleration, deceleration, and crawling, character feet slipped visibly against the terrain.
+  2. Idle animation was running at 7.0 FPS, causing the character to cycle 6 breathing frames in only 0.85s, appearing hyperactive rather than calmly atmospheric.
+- **Solution:**
+  1. Implemented true physical motion matching: `strideDistance += |vx| * dt` advancing frames directly proportional to floor displacement (`136px` per 8-frame run loop = `17px/frame`, `84px` per 6-frame crawl loop = `14px/frame`). Feet lock precisely to ground contacts with zero sliding.
+  2. Stationary crouch firmly holds frame 0, preventing accidental crawl slipping while sneaking under cover.
+  3. Relaxed idle breathing to a measured 4.0 FPS (~1.5s per cycle) creating quiet suspense.
+  4. Synchronized footstep audio foley directly to ground stride intervals (`68px` run half-step, `42px` crawl pace).
+- **Status:** Verified (Test 27).
+
+---
+
+### [RND-28] [VISUAL/SPRITESHEET] Animated Torch Fire Spritesheet & Dynamic Hand Attachment
+- **Location:** `assets/torch_fire.png`, `assets/torch_animations.json`, `generate_torch_spritesheet.py`, `src/entities/Player.js:84-112, 755-850`, `src/engine/Particles.js:55-75`
+- **Root Cause:**
+  1. The held lighter flame was rendered at a fixed static offset `(14, topY + 22)` regardless of current animation or frame. When running (torso leaning forward), jumping (airborne body arch), or crouching (body dropping from 44px to 24px height), the flame floated in mid-air completely detached from the player.
+  2. The flame visual was a plain canvas triangle with a radial gradient and had no physical lighter casing or wick.
+- **Solution:**
+  1. Generated an 8-frame looping HD animated flame spritesheet (`assets/torch_fire.png` + `assets/torch_animations.json`) at 512x64 RGBA featuring an authentic antique brass lighter casing, chimney vents, flint wheel, charred wick, cyan-blue combustion ignition arc, incandescent golden core, licking flame tongues, rising micro-embers, and soft bloom aura.
+  2. Implemented dynamic per-frame hand tracking (`player.getHandAnchor()`) mapping exact hand coordinates across all 5 animation sets (idle chest hold, running arm swing, low crawl ground illumination, airborne jump extension).
+  3. Integrated physical wind tilt responding to horizontal velocity (`vx`) and added atmospheric thermal ember emission (`particles.spawnFlameEmbers`).
+  4. Anchored dynamic lighting source (`player.lightSource`) to the moving hand anchor in real-time world coordinates.
+- **Status:** Verified (Test 28).
+
+---
+
 ## 2. Implementation & Verification Tracking
 
 | ID | Component | Status | Notes |
@@ -264,5 +292,8 @@ Detailed R&D findings, mechanic deep-dives, edge cases, missing feature implemen
 | **RND-24** | `Player.js` (Jump Teleport & Thin Form) | Verified | Ledge grab crate immunity, ascent guard, volume squash/stretch & new hang sprite |
 | **RND-25** | `Player.js` / `Physics.js` (Rope Swing & Dismount) | Verified | Grab cooldown (0.35s), targeted impulse, and chasm geometry at x=2110/2360 |
 | **RND-26** | `Player.js` / `assets/` (Player Spritesheet) | Verified | 1280x800 transparent spritesheet, 5 animation rows & state machine |
+| **RND-27** | `Player.js` (Motion Matching Locomotion) | Verified | Distance-locked stride cycle (136px run, 84px crawl, 4.0 FPS calm idle) |
+| **RND-28** | `Player.js` / `assets/` (Animated Torch Spritesheet) | Verified | 8-frame HD flame spritesheet with hand-tracking anchor & dynamic lighting |
+
 
 

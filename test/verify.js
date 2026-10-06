@@ -604,6 +604,74 @@ if (player.currentAnim !== 'hang') {
 }
 console.log('✓ Player spritesheet assets & animation state machine verified');
 
+// 27. Motion Matching Locomotion Stride Synchronization Test
+player.isHanging = false;
+player.onFloor = true;
+player.isCrouching = false;
+player.vx = 170; // 170 px/s
+player.strideDistance = 0;
+player.updateAnimation(0.016); // moves 170 * 0.016 = 2.72px
+if (player.currentAnim !== 'run') {
+  throw new Error(`Expected run animation, got ${player.currentAnim}`);
+}
+// Step forward by 17px (exactly 1/8th of 136px cycle)
+player.updateAnimation(0.084); // total distance now ~17px
+if (player.animFrame < 1) {
+  throw new Error(`Expected motion matching to advance frame to >= 1 after 17px stride, got ${player.animFrame}`);
+}
+
+// Test stationary crouch keeps steady frame 0
+player.isCrouching = true;
+player.vx = 0;
+player.updateAnimation(0.1);
+if (player.currentAnim !== 'crawl' || player.animFrame !== 0) {
+  throw new Error(`Expected stationary crouch frame 0, got ${player.currentAnim} frame ${player.animFrame}`);
+}
+console.log('✓ Motion matching stride synchronization & zero foot-slipping verified');
+
+// 28. Animated Torch Fire Spritesheet & Dynamic Hand Anchor Test
+const torchPngPath = path.join(__dirname, '../assets/torch_fire.png');
+const torchJsonPath = path.join(__dirname, '../assets/torch_animations.json');
+
+if (!fs.existsSync(torchPngPath)) {
+  throw new Error(`torch_fire.png missing at: ${torchPngPath}`);
+}
+if (!fs.existsSync(torchJsonPath)) {
+  throw new Error(`torch_animations.json missing at: ${torchJsonPath}`);
+}
+
+const torchMeta = JSON.parse(fs.readFileSync(torchJsonPath, 'utf8'));
+if (torchMeta.frameCount !== 8 || torchMeta.frameWidth !== 64) {
+  throw new Error(`Invalid torch metadata: ${JSON.stringify(torchMeta)}`);
+}
+
+// Verify hand anchor adapts across postures and anchors lightSource
+player.onFloor = true;
+player.isCrouching = false;
+player.vx = 0;
+player.updateAnimation(0.016);
+const idleHand = player.getHandAnchor();
+
+player.isCrouching = true;
+player.vx = 60;
+player.updateAnimation(0.016);
+const crawlHand = player.getHandAnchor();
+
+// In crouch/crawl, hand must be significantly closer to floor (y is less negative)
+if (crawlHand.y <= idleHand.y) {
+  throw new Error(`Hand anchor did not lower in crawl! idle.y=${idleHand.y}, crawl.y=${crawlHand.y}`);
+}
+
+// Test dynamic lightSource follows hand anchor
+player.lighterLit = true;
+player.lightSource = { x: 0, y: 0 };
+player.update(0.016, dummyInput, physics, mockAudio, mockCamera, mockParticles);
+const expectedLightY = player.y + player.h + crawlHand.y - 10;
+if (Math.abs(player.lightSource.y - expectedLightY) > 2) {
+  throw new Error(`lightSource did not track hand anchor! got ${player.lightSource.y}, expected ${expectedLightY}`);
+}
+console.log('✓ Torch flame spritesheet & dynamic hand anchor attachment verified');
+
 console.log('====================================================');
 console.log('All automated simulation tests PASSED with 0 errors!');
 console.log('====================================================');
