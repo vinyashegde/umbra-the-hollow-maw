@@ -451,7 +451,7 @@ export class Player {
     if (this.lightSource) {
       const hand = this.getHandAnchor();
       this.lightSource.x = this.x + this.w * 0.5 + this.facing * hand.x;
-      this.lightSource.y = this.y + this.h + hand.y - 10;
+      this.lightSource.y = this.y + this.h + hand.y - 6;
     }
 
     // Subtle atmospheric ember emission from lighter flame
@@ -461,7 +461,7 @@ export class Player {
         this.emberTimer = 0;
         const hand = this.getHandAnchor();
         const emberX = this.x + this.w * 0.5 + this.facing * hand.x;
-        const emberY = this.y + this.h + hand.y - 12;
+        const emberY = this.y + this.h + hand.y - 8;
         particles.spawnFlameEmbers(emberX, emberY, 1);
       }
     }
@@ -753,65 +753,67 @@ export class Player {
   }
 
   getHandAnchor() {
+    // Exact hand coordinates relative to feet center (0, 0), where head top is -44, eyes are -32, chin is -26.
+    // Hands are held forward at waist/hip height (y = -12 to -16), strictly below the neck and face!
     const HAND_OFFSETS = {
       idle: [
-        { x: 12.0, y: -29.5 },
-        { x: 12.3, y: -29.8 },
-        { x: 12.3, y: -29.8 },
-        { x: 12.3, y: -29.5 },
-        { x: 12.3, y: -29.8 },
-        { x: 12.3, y: -29.8 }
+        { x: 10.5, y: -12.5 },
+        { x: 10.5, y: -12.8 },
+        { x: 10.5, y: -12.5 },
+        { x: 10.8, y: -12.3 },
+        { x: 10.5, y: -12.5 },
+        { x: 10.5, y: -12.8 }
       ],
       run: [
-        { x: 20.1, y: -27.6 },
-        { x: 20.9, y: -29.1 },
-        { x: 23.5, y: -28.0 },
-        { x: 23.1, y: -28.7 },
-        { x: 22.0, y: -28.3 },
-        { x: 22.7, y: -28.3 },
-        { x: 23.5, y: -28.7 },
-        { x: 20.1, y: -28.3 }
+        { x: 16.0, y: -12.5 },
+        { x: 18.5, y: -14.5 },
+        { x: 20.5, y: -16.0 },
+        { x: 19.5, y: -15.0 },
+        { x: 12.0, y: -14.0 },
+        { x: 18.5, y: -15.0 },
+        { x: 15.5, y: -12.0 },
+        { x: 13.0, y: -13.0 }
       ],
       jump: [
-        { x: 14.2, y: -25.7 },
-        { x: 16.0, y: -26.8 },
-        { x: 20.5, y: -27.6 },
-        { x: 20.5, y: -25.0 },
-        { x: 21.2, y: -22.7 },
-        { x: 15.6, y: -26.1 }
+        { x: 11.0, y: -16.0 },
+        { x: 13.5, y: -15.0 },
+        { x: 16.0, y: -17.0 },
+        { x: 15.0, y: -14.0 },
+        { x: 18.0, y: -16.0 },
+        { x: 13.0, y: -15.0 }
       ],
       crawl: [
-        { x: 21.2, y: -22.4 },
-        { x: 21.2, y: -22.0 },
-        { x: 20.5, y: -22.4 },
-        { x: 22.4, y: -16.0 },
-        { x: 19.8, y: -19.8 },
-        { x: 18.6, y: -17.2 }
+        { x: 14.0, y: -5.0 },
+        { x: 14.0, y: -5.0 },
+        { x: 12.0, y: -5.0 },
+        { x: 19.0, y: -9.0 },
+        { x: 17.0, y: -9.0 },
+        { x: 16.0, y: -8.0 }
       ],
       slide: [
-        { x: 22.4, y: -16.0 }
+        { x: 19.0, y: -9.0 }
       ],
       hang: [
-        { x: 10.0, y: -35.0 },
-        { x: 9.3, y: -32.8 },
-        { x: 11.9, y: -11.9 },
-        { x: 11.5, y: -10.8 },
-        { x: 9.7, y: -14.9 },
-        { x: 16.4, y: -14.9 }
+        { x: 8.0, y: -8.0 },
+        { x: 8.0, y: -8.0 },
+        { x: 8.0, y: -8.0 },
+        { x: 8.0, y: -8.0 },
+        { x: 8.0, y: -8.0 },
+        { x: 8.0, y: -8.0 }
       ]
     };
 
     const animList = HAND_OFFSETS[this.currentAnim] || HAND_OFFSETS.idle;
     const frameIdx = Math.min(animList.length - 1, Math.max(0, this.animFrame || 0));
-    return animList[frameIdx] || { x: 12.0, y: -28.0 };
+    return animList[frameIdx] || { x: 10.5, y: -12.5 };
   }
 
   renderTorch(ctx, handX, handY) {
     if (this.torchSpriteLoaded && this.torchSpriteImage) {
       const CELL_SIZE = 64;
-      const PIVOT_X = 32;
-      const PIVOT_Y = 50;
-      const TORCH_SCALE = 0.44;
+      const PIVOT_X = 31;
+      const PIVOT_Y = 54;
+      const TORCH_SCALE = 0.32; // Proportional handheld lighter scale (~20px total cell)
 
       const col = (this.flameFrame || 0) % 8;
       const sx = col * CELL_SIZE;
@@ -821,10 +823,17 @@ export class Player {
       const drawH = CELL_SIZE * TORCH_SCALE;
 
       // Draft wind tilt when moving horizontally
-      const windTilt = -(this.vx / 240) * 0.18;
+      const windTilt = -(this.vx / 240) * 0.16;
 
       ctx.save();
       ctx.translate(handX, handY);
+
+      // Child's hand / sleeve cuff silhouette gripping the lighter
+      ctx.fillStyle = '#080a0e';
+      ctx.beginPath();
+      ctx.ellipse(-1.5, 1, 3.2, 2.5, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+
       if (Math.abs(windTilt) > 0.01) {
         ctx.rotate(windTilt);
       }
@@ -836,33 +845,33 @@ export class Player {
       );
       ctx.restore();
     } else {
-      // Procedural fallback brass lighter casing & flame
+      // Procedural fallback brass lighter casing & flame held at hand level
       ctx.save();
       ctx.translate(handX, handY);
 
       // 1. Brass Lighter Case
       ctx.fillStyle = '#2a221a';
-      ctx.fillRect(-3, -2, 6, 8);
+      ctx.fillRect(-2.5, -2, 5, 6);
       ctx.strokeStyle = '#5a4834';
       ctx.lineWidth = 1;
-      ctx.strokeRect(-3, -2, 6, 8);
+      ctx.strokeRect(-2.5, -2, 5, 6);
 
       // Specular highlight
       ctx.fillStyle = '#8c744b';
-      ctx.fillRect(-2, -1, 1, 6);
+      ctx.fillRect(-1.5, -1, 1, 4);
 
       // Chimney & wick
       ctx.fillStyle = '#202124';
-      ctx.fillRect(-2, -5, 4, 3);
+      ctx.fillRect(-1.5, -4, 3, 2);
       ctx.fillStyle = '#141414';
-      ctx.fillRect(-0.5, -7, 1, 2);
+      ctx.fillRect(-0.5, -5.5, 1, 1.5);
 
       // 2. Animated Flickering Flame
-      const flameNoise = Math.sin(this.animTime * 22) * 1.5;
-      const flameH = 12 + Math.sin(this.animTime * 18) * 2;
-      const flameY = -7;
+      const flameNoise = Math.sin(this.animTime * 22) * 1.2;
+      const flameH = 9 + Math.sin(this.animTime * 18) * 1.5;
+      const flameY = -5.5;
 
-      const flameGrad = ctx.createRadialGradient(0, flameY - 4, 0, 0, flameY - 4, 9);
+      const flameGrad = ctx.createRadialGradient(0, flameY - 3, 0, 0, flameY - 3, 7);
       flameGrad.addColorStop(0, '#ffffff');
       flameGrad.addColorStop(0.25, '#ffe044');
       flameGrad.addColorStop(0.65, '#ff6611');
@@ -871,16 +880,16 @@ export class Player {
 
       ctx.fillStyle = flameGrad;
       ctx.beginPath();
-      ctx.moveTo(-3, flameY);
-      ctx.quadraticCurveTo(0, flameY - flameH * 0.7 + flameNoise, flameNoise * 0.8, flameY - flameH);
-      ctx.quadraticCurveTo(0, flameY - flameH * 0.7 + flameNoise, 3, flameY);
+      ctx.moveTo(-2.5, flameY);
+      ctx.quadraticCurveTo(0, flameY - flameH * 0.7 + flameNoise, flameNoise * 0.6, flameY - flameH);
+      ctx.quadraticCurveTo(0, flameY - flameH * 0.7 + flameNoise, 2.5, flameY);
       ctx.closePath();
       ctx.fill();
 
       // Blue ignition root arc
       ctx.fillStyle = 'rgba(60, 160, 255, 0.85)';
       ctx.beginPath();
-      ctx.arc(0, flameY, 2, 0, Math.PI * 2);
+      ctx.arc(0, flameY, 1.5, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();

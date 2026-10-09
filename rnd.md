@@ -252,12 +252,14 @@ Detailed R&D findings, mechanic deep-dives, edge cases, missing feature implemen
 - **Location:** `assets/torch_fire.png`, `assets/torch_animations.json`, `generate_torch_spritesheet.py`, `src/entities/Player.js:84-112, 755-850`, `src/engine/Particles.js:55-75`
 - **Root Cause:**
   1. The held lighter flame was rendered at a fixed static offset `(14, topY + 22)` regardless of current animation or frame. When running (torso leaning forward), jumping (airborne body arch), or crouching (body dropping from 44px to 24px height), the flame floated in mid-air completely detached from the player.
-  2. The flame visual was a plain canvas triangle with a radial gradient and had no physical lighter casing or wick.
+  2. The initial hand detection bounding box selected chin/facial contour points at `y = -29.5`, causing the flame to rise directly across the character's eyes and top of the head (`y = -44`), making the head appear on fire.
+  3. The flame visual was previously a plain canvas triangle with a radial gradient and had no physical lighter casing or wick.
 - **Solution:**
   1. Generated an 8-frame looping HD animated flame spritesheet (`assets/torch_fire.png` + `assets/torch_animations.json`) at 512x64 RGBA featuring an authentic antique brass lighter casing, chimney vents, flint wheel, charred wick, cyan-blue combustion ignition arc, incandescent golden core, licking flame tongues, rising micro-embers, and soft bloom aura.
-  2. Implemented dynamic per-frame hand tracking (`player.getHandAnchor()`) mapping exact hand coordinates across all 5 animation sets (idle chest hold, running arm swing, low crawl ground illumination, airborne jump extension).
-  3. Integrated physical wind tilt responding to horizontal velocity (`vx`) and added atmospheric thermal ember emission (`particles.spawnFlameEmbers`).
-  4. Anchored dynamic lighting source (`player.lightSource`) to the moving hand anchor in real-time world coordinates.
+  2. Calibrated dynamic per-frame hand tracking (`player.getHandAnchor()`) to the true anatomical hand/waist level (`y = -12.5` to `-16.0`), positioning the flame safely at lower-chest height with >5px clearance below the glowing eyes (`y = -32.5`) and head (`y = -44`).
+  3. Rendered a subtle hand/sleeve cuff silhouette gripping the lighter base so the holding action is distinct and grounded.
+  4. Integrated physical wind tilt responding to horizontal velocity (`vx`) and added atmospheric thermal ember emission (`particles.spawnFlameEmbers`).
+  5. Anchored dynamic lighting source (`player.lightSource`) to the moving hand anchor in real-time world coordinates.
 - **Status:** Verified (Test 28).
 
 ---

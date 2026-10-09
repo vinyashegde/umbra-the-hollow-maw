@@ -652,6 +652,11 @@ player.vx = 0;
 player.updateAnimation(0.016);
 const idleHand = player.getHandAnchor();
 
+// Verify hand is strictly at waist/hip level, far below head top (-44) and eyes (-32)
+if (idleHand.y < -20 || idleHand.y > -8) {
+  throw new Error(`idle hand Y is not at waist/hand level! got ${idleHand.y}`);
+}
+
 player.isCrouching = true;
 player.vx = 60;
 player.updateAnimation(0.016);
@@ -666,7 +671,7 @@ if (crawlHand.y <= idleHand.y) {
 player.lighterLit = true;
 player.lightSource = { x: 0, y: 0 };
 player.update(0.016, dummyInput, physics, mockAudio, mockCamera, mockParticles);
-const expectedLightY = player.y + player.h + crawlHand.y - 10;
+const expectedLightY = player.y + player.h + crawlHand.y - 6;
 if (Math.abs(player.lightSource.y - expectedLightY) > 2) {
   throw new Error(`lightSource did not track hand anchor! got ${player.lightSource.y}, expected ${expectedLightY}`);
 }
