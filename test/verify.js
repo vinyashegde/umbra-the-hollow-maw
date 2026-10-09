@@ -677,6 +677,131 @@ if (Math.abs(player.lightSource.y - expectedLightY) > 2) {
 }
 console.log('✓ Torch flame spritesheet & dynamic hand anchor attachment verified');
 
+// 29. Electric Flashlight Dual Lighting System (Spotlight + Fill Light) Test
+const testBoy = new Player(150, 400);
+testBoy.hasTorch = true;
+testBoy.lighterLit = true;
+testBoy.torchSpotlight = { x: 0, y: 0, angle: 0, active: true };
+testBoy.torchFillLight = { x: 0, y: 0, active: true };
+testBoy.facing = 1;
+testBoy.update(0.016, dummyInput, physics, mockAudio, mockCamera, mockParticles);
+
+// Verify spotlight points forward along player facing
+if (testBoy.torchSpotlight.angle < 0 || testBoy.torchSpotlight.angle > 0.5) {
+  throw new Error(`Flashlight beam angle expected forward (~0.05 rad), got ${testBoy.torchSpotlight.angle}`);
+}
+
+// Test flashlight toggle off
+dummyInput.actions.lighterJustPressed = true;
+testBoy.update(0.016, dummyInput, physics, mockAudio, mockCamera, mockParticles);
+dummyInput.actions.lighterJustPressed = false;
+if (testBoy.lighterLit || testBoy.torchSpotlight.active || testBoy.torchFillLight.active) {
+  throw new Error('Flashlight did not power off both spotlight and fill light when toggled off!');
+}
+
+// Test player without torch cannot power on light
+testBoy.hasTorch = false;
+testBoy.lighterLit = false;
+dummyInput.actions.lighterJustPressed = true;
+testBoy.update(0.016, dummyInput, physics, mockAudio, mockCamera, mockParticles);
+dummyInput.actions.lighterJustPressed = false;
+if (testBoy.lighterLit || testBoy.torchSpotlight.active) {
+  throw new Error('Player without torch was able to power on flashlight!');
+}
+console.log('✓ Electric flashlight dual-lighting & directional beam projection verified');
+
+// 30. Limbo Frail Boy Silhouette Metrics & Vertical Clearance Test
+const boyStandHeight = testBoy.standHeight;
+const boyWidth = testBoy.w;
+if (boyStandHeight !== 44 || boyWidth !== 22) {
+  throw new Error(`Invalid frail boy silhouette dimensions: ${boyWidth}x${boyStandHeight}`);
+}
+testBoy.currentAnim = 'idle';
+testBoy.animFrame = 0;
+const boyHandAnchor = testBoy.getHandAnchor();
+// Hand anchor must be between -16px and -10px from feet (waist/hip level)
+if (boyHandAnchor.y < -16 || boyHandAnchor.y > -9) {
+  throw new Error(`Hand anchor y=${boyHandAnchor.y} outside realistic waist range [-16, -9]`);
+}
+// Boy's head is at y ~ -40px to -32px; verify clearance >= 16px to guarantee torch is held below face
+const boyHeadY = -34;
+const clearance = Math.abs(boyHeadY - boyHandAnchor.y);
+if (clearance < 16) {
+  throw new Error(`Insufficient eye-to-hand vertical clearance! clearance = ${clearance}px`);
+}
+console.log(`✓ Limbo frail boy proportions & eye-to-hand clearance verified (clearance = ${clearance.toFixed(1)}px)`);
+
+// 31. Act 1 Cold-Open Darkness & Flashlight Discovery Progression Test
+const mockGame = {
+  physics: new PhysicsWorld(),
+  lighting: {
+    ambientLight: 0.16,
+    lights: [],
+    clear() { this.lights = []; },
+    addPointLight(x, y, r, c, f) {
+      const l = { type: 'point', x, y, radius: r, color: c, active: true };
+      this.lights.push(l);
+      return l;
+    },
+    addSpotlight(x, y, r, a, s, c) {
+      const l = { type: 'spot', x, y, radius: r, angle: a, spread: s, color: c, active: true };
+      this.lights.push(l);
+      return l;
+    }
+  },
+  camera: new Camera(1280, 720),
+  particles: { initAmbientMotes: () => {}, spawnSparks: () => {} },
+  audio: mockAudio,
+  player: new Player(120, 520)
+};
+
+const coldOpenLevelMgr = new LevelManager(mockGame);
+// Clear any existing localStorage save state from prior tests to ensure clean cold open
+if (typeof localStorage !== 'undefined') {
+  localStorage.removeItem('umbra_save');
+}
+// Load Act 1 at checkpoint 0 (cold open)
+coldOpenLevelMgr.loadAct(1, 0, false);
+
+if (mockGame.player.hasTorch !== false || mockGame.player.lighterLit !== false) {
+  throw new Error('Player must start Act 1 cold-open without torch!');
+}
+if (mockGame.lighting.ambientLight > 0.08) {
+  throw new Error(`Act 1 cold-open must start in deep darkness, got ambientLight = ${mockGame.lighting.ambientLight}`);
+}
+if (!coldOpenLevelMgr.torchPickup) {
+  throw new Error('TorchPickup entity missing from Act 1 cold-open!');
+}
+
+// Move player to torch location (x = 310) and trigger pickup
+mockGame.player.x = 300;
+mockGame.player.y = 536;
+const pickupInput = {
+  actions: {
+    left: false, right: false, up: false, down: false,
+    jump: false, jumpJustPressed: false, jumpJustReleased: false,
+    crouch: false, sprint: false,
+    interact: true, interactJustPressed: true,
+    lighterJustPressed: false
+  }
+};
+
+coldOpenLevelMgr.update(0.016, mockGame.player, pickupInput, mockGame.physics, mockAudio, mockGame.camera, mockGame.particles);
+
+if (!coldOpenLevelMgr.torchPickup.collected) {
+  throw new Error('TorchPickup was not collected when player interacted within proximity!');
+}
+if (!mockGame.player.hasTorch || !mockGame.player.lighterLit) {
+  throw new Error('Player failed to equip and ignite flashlight after pickup!');
+}
+if (mockGame.lighting.ambientLight < 0.14) {
+  throw new Error(`Ambient lighting did not restore upon flashlight pickup! got ${mockGame.lighting.ambientLight}`);
+}
+if (!mockGame.player.torchSpotlight || !mockGame.player.torchSpotlight.active) {
+  throw new Error('Flashlight spotlight beam was not activated upon discovery!');
+}
+console.log('✓ Act 1 cold-open darkness, moonbeam shaft & flashlight discovery verified');
+
 console.log('====================================================');
 console.log('All automated simulation tests PASSED with 0 errors!');
 console.log('====================================================');

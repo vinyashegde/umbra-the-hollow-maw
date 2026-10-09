@@ -5,6 +5,7 @@
 import { Crate } from '../entities/Crate.js';
 import { BearTrap, SwingingPendulum } from '../entities/Trap.js';
 import { VerletRope } from '../engine/Physics.js';
+import { TorchPickup } from '../entities/TorchPickup.js';
 
 export function setupAct1(physics, lighting, camera, levelMgr) {
   physics.clear();
@@ -15,8 +16,20 @@ export function setupAct1(physics, lighting, camera, levelMgr) {
   const levelHeight = 900;
   camera.setBounds(0, levelWidth, -200, levelHeight);
 
-  // Background Ambience Lighting
-  lighting.ambientLight = 0.16;
+  // Cold-Open Torch Pickup setup (Act 1 start)
+  const isColdOpen = levelMgr.activeCheckpointIndex === 0 && !levelMgr.hasAcquiredTorch;
+  if (isColdOpen) {
+    // Eerie deep darkness before finding the flashlight
+    lighting.ambientLight = 0.04;
+    levelMgr.torchPickup = new TorchPickup(310, 566);
+
+    // Eerie shaft of moonlight shining down through the dense forest canopy
+    levelMgr.moonbeamSpotlight = lighting.addSpotlight(310, 140, 520, Math.PI * 0.5, 0.44, 'rgba(215, 235, 255, 0.85)');
+    levelMgr.moonbeamGroundLight = lighting.addPointLight(310, 566, 120, 'rgba(200, 230, 255, 0.65)', 0.02);
+  } else {
+    lighting.ambientLight = 0.16;
+    levelMgr.torchPickup = null;
+  }
 
   // Checkpoints
   levelMgr.checkpoints = [

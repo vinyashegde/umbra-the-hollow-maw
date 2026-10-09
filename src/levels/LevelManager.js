@@ -34,14 +34,22 @@ export class LevelManager {
     // Death transition timer
     this.deathTimer = 0;
     this.respawning = false;
+
+    // Cold-Open Flashlight entity
+    this.torchPickup = null;
+    this.moonbeamSpotlight = null;
+    this.moonbeamGroundLight = null;
+    this.hasAcquiredTorch = false;
   }
 
-  saveProgress(actNum, checkpointIndex) {
+  saveProgress(actNum, checkpointIndex, hasTorch = null) {
     try {
       if (typeof localStorage !== 'undefined') {
+        const torchState = hasTorch !== null ? hasTorch : (this.game && this.game.player ? this.game.player.hasTorch : true);
         localStorage.setItem('umbra_save', JSON.stringify({
           act: actNum,
           checkpoint: checkpointIndex,
+          hasTorch: torchState,
           timestamp: Date.now()
         }));
       }
@@ -69,8 +77,22 @@ export class LevelManager {
     this.respawning = false;
     this.deathTimer = 0;
 
+    // Determine initial torch ownership (Act 1 cold-open starts in darkness without torch)
+    const saved = this.getSavedProgress();
+    const hasPriorTorchInAct1Start = saved && saved.act === 1 && saved.checkpoint === 0 && saved.hasTorch;
+
+    if (actNum === 1 && checkpointIndex === 0 && !isRespawn && !hasPriorTorchInAct1Start) {
+      this.hasAcquiredTorch = false;
+      this.game.player.hasTorch = false;
+      this.game.player.lighterLit = false;
+    } else {
+      this.hasAcquiredTorch = true;
+      this.game.player.hasTorch = true;
+      this.game.player.lighterLit = true;
+    }
+
     // Persist progress to localStorage
-    this.saveProgress(actNum, checkpointIndex);
+    this.saveProgress(actNum, checkpointIndex, this.hasAcquiredTorch);
 
     // Clear any pending timers
     if (this._chaseDoorTimer) {
@@ -92,6 +114,9 @@ export class LevelManager {
     this.collapsingPlatforms = [];
     this.searchlights = [];
     this.electricWater = null;
+    this.torchPickup = null;
+    this.moonbeamSpotlight = null;
+    this.moonbeamGroundLight = null;
 
     // Setup Act
     if (actNum === 1) {
@@ -110,20 +135,32 @@ export class LevelManager {
     this.game.camera.y = cp.y;
     this.game.camera.setZoom(1.0);
 
-    // Attach player's lighter to lighting system
-    const lighterLight = this.game.lighting.addPointLight(cp.x, cp.y, 160, 'rgba(255, 215, 140, 0.85)', 0.08);
-    this.game.player.lightSource = lighterLight;
+    // Attach player's dual flashlight lights to lighting system
+    const startAngle = (this.game.player.facing === 1) ? 0.05 : (Math.PI - 0.05);
+    const isLit = this.game.player.hasTorch && this.game.player.lighterLit;
+
+    const torchSpotlight = this.game.lighting.addSpotlight(cp.x, cp.y, 320, startAngle, 0.72, 'rgba(235, 245, 255, 0.95)');
+    torchSpotlight.active = isLit;
+    this.game.player.torchSpotlight = torchSpotlight;
+    this.game.player.lightSource = torchSpotlight; // backward-compatibility
+
+    const torchFillLight = this.game.lighting.addPointLight(cp.x, cp.y, 75, 'rgba(220, 235, 255, 0.5)', 0.02);
+    torchFillLight.active = isLit;
+    this.game.player.torchFillLight = torchFillLight;
 
     // Initialize atmospheric motes
     this.game.particles.initAmbientMotes(this.game.camera.bounds);
 
-    // Show chapter card only when entering an act from the beginning, not on respawn
+    // Show chapter card only when entering an act from the beginning (except Act 1 cold-open where torch pickup reveals it!)
     if (!isRespawn && checkpointIndex === 0) {
-      this.showChapterCard(actNum);
+      if (actNum !== 1 || this.game.player.hasTorch) {
+        this.showChapterCard(actNum);
+      }
     }
   }
 
   showChapterCard(actNum) {
+    if (typeof document === 'undefined') return;
     const titles = {
       1: { num: 'CHAPTER I', title: 'THE WHISPERING WOODS', sub: 'Some horrors are best left asleep' },
       2: { num: 'CHAPTER II', title: 'THE RUSTED MAW', sub: 'The machine breathes beneath your feet' },
@@ -148,6 +185,7 @@ export class LevelManager {
   }
 
   showCheckpointToast(name) {
+    if (typeof document === 'undefined') return;
     const toast = document.getElementById('checkpoint-toast');
     const nameEl = document.getElementById('checkpoint-name');
     if (toast && nameEl) {
@@ -215,6 +253,11 @@ export class LevelManager {
   }
 
   update(dt, player, input, physics, audio, camera, particles) {
+    // 0. Cold-Open Flashlight Pickup
+    if (this.torchPickup && !this.torchPickup.collected) {
+      this.torchPickup.update(dt, player, input, audio, camera, particles, this);
+    }
+
     // 1. Checkpoint detection
     for (let i = 0; i < this.checkpoints.length; i++) {
       const cp = this.checkpoints[i];
@@ -378,15 +421,19 @@ export class LevelManager {
       }
     }
     // Feed threat into dynamic heartbeat
-    audio.updateHeartbeat(dt, maxThreat);
+    if (audio && typeof audio.updateHeartbeat === 'function') {
+      audio.updateHeartbeat(dt, maxThreat);
+    }
 
     // 11. Death handling & fast respawn
     if (player.isDead && !this.respawning) {
       this.deathTimer += dt;
-      const deathScreen = document.getElementById('death-screen');
-      if (deathScreen) {
-        deathScreen.classList.remove('hidden');
-        deathScreen.style.opacity = Math.min(1.0, this.deathTimer * 2.2).toString();
+      if (typeof document !== 'undefined') {
+        const deathScreen = document.getElementById('death-screen');
+        if (deathScreen) {
+          deathScreen.classList.remove('hidden');
+          deathScreen.style.opacity = Math.min(1.0, this.deathTimer * 2.2).toString();
+        }
       }
 
       if (this.deathTimer > 0.95) {
@@ -451,6 +498,10 @@ export class LevelManager {
 
   // Render Entities
   renderEntities(ctx, camera) {
+    // 0. Cold-Open Flashlight Pickup
+    if (this.torchPickup && !this.torchPickup.collected) {
+      this.torchPickup.render(ctx);
+    }
     // 1. Traps
     for (const trap of this.traps) {
       trap.render(ctx);

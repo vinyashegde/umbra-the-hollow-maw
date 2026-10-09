@@ -271,13 +271,29 @@ export class UIManager {
     let promptText = null;
     let targetX = 0, targetY = 0;
 
+    // Check Flashlight Pickup (Cold-Open)
+    if (levelMgr.torchPickup && !levelMgr.torchPickup.collected) {
+      const tp = levelMgr.torchPickup;
+      const torchDist = Math.hypot(
+        (tp.x + tp.w * 0.5) - (player.x + player.w * 0.5),
+        (tp.y + tp.h * 0.5) - (player.y + player.h * 0.5)
+      );
+      if (torchDist < 55) {
+        promptText = 'PICK UP FLASHLIGHT';
+        targetX = tp.x + tp.w * 0.5;
+        targetY = tp.y - 18;
+      }
+    }
+
     // Check Levers
-    for (const lever of levelMgr.levers) {
-      if (Math.hypot(lever.x - player.x, lever.y - player.y) < 55) {
-        promptText = 'PULL LEVER';
-        targetX = lever.x + lever.w * 0.5;
-        targetY = lever.y - 15;
-        break;
+    if (!promptText) {
+      for (const lever of levelMgr.levers) {
+        if (Math.hypot(lever.x - player.x, lever.y - player.y) < 55) {
+          promptText = 'PULL LEVER';
+          targetX = lever.x + lever.w * 0.5;
+          targetY = lever.y - 15;
+          break;
+        }
       }
     }
 

@@ -53,7 +53,8 @@ export class Player {
 
     this.isHiding = false;
     this.isDead = false;
-    this.lighterLit = true; // start with lighter on
+    this.hasTorch = true; // whether player has discovered and equipped the torch
+    this.lighterLit = true; // flashlight beam power state (on/off)
 
     // Sprint-Slide Traversal Mechanic
     this.isSliding = false;
@@ -70,8 +71,10 @@ export class Player {
     this.stretch = 1.0;
     this.cloakSwing = 0;
 
-    // Light source reference (lighter)
+    // Light source references (spotlight beam + ambient fill)
     this.lightSource = null;
+    this.torchSpotlight = null;
+    this.torchFillLight = null;
 
     // Spritesheet Animation System
     this.spriteLoaded = false;
@@ -142,8 +145,15 @@ export class Player {
     this.flameFrame = 0;
     this.flameTimer = 0;
     this.emberTimer = 0;
+    const isLit = this.hasTorch && this.lighterLit;
     if (this.lightSource) {
-      this.lightSource.active = this.lighterLit;
+      this.lightSource.active = isLit;
+    }
+    if (this.torchSpotlight) {
+      this.torchSpotlight.active = isLit;
+    }
+    if (this.torchFillLight) {
+      this.torchFillLight.active = isLit;
     }
   }
 
@@ -165,6 +175,12 @@ export class Player {
     if (this.lightSource) {
       this.lightSource.active = false;
     }
+    if (this.torchSpotlight) {
+      this.torchSpotlight.active = false;
+    }
+    if (this.torchFillLight) {
+      this.torchFillLight.active = false;
+    }
     audio.playDeath();
     camera.addTrauma(0.75);
     particles.spawnLandingDust(this.x + this.w * 0.5, this.y + this.h, 25);
@@ -174,7 +190,7 @@ export class Player {
   }
 
   checkHiding(physics) {
-    if (!this.isCrouching || this.lighterLit) {
+    if (!this.isCrouching || (this.hasTorch && this.lighterLit)) {
       this.isHiding = false;
       return false;
     }
@@ -202,12 +218,20 @@ export class Player {
       this.ropeCooldown = Math.max(0, this.ropeCooldown - dt);
     }
 
-    // 1. Lighter Toggle
+    // 1. Flashlight / Torch Toggle
     if (input.actions.lighterJustPressed) {
-      this.lighterLit = !this.lighterLit;
-      audio.playLighter();
-      if (this.lightSource) {
-        this.lightSource.active = this.lighterLit;
+      if (this.hasTorch) {
+        this.lighterLit = !this.lighterLit;
+        audio.playLighter();
+        if (this.lightSource) {
+          this.lightSource.active = this.lighterLit;
+        }
+        if (this.torchSpotlight) {
+          this.torchSpotlight.active = this.lighterLit;
+        }
+        if (this.torchFillLight) {
+          this.torchFillLight.active = this.lighterLit;
+        }
       }
     }
 
@@ -447,21 +471,45 @@ export class Player {
       this.flameFrame = (this.flameFrame + 1) % 8;
     }
 
-    // Update attached dynamic lighter position to match real-time hand anchor
+    // Update attached dynamic flashlight and lights to match real-time hand anchor
+    const hand = this.getHandAnchor();
+    const handWorldX = this.x + this.w * 0.5 + this.facing * hand.x;
+    const handWorldY = this.y + this.h + hand.y;
+    const isLit = this.hasTorch && this.lighterLit;
+
     if (this.lightSource) {
-      const hand = this.getHandAnchor();
-      this.lightSource.x = this.x + this.w * 0.5 + this.facing * hand.x;
-      this.lightSource.y = this.y + this.h + hand.y - 6;
+      this.lightSource.x = handWorldX;
+      this.lightSource.y = handWorldY - 6;
+      this.lightSource.active = isLit;
     }
 
-    // Subtle atmospheric ember emission from lighter flame
-    if (this.lighterLit && particles && typeof particles.spawnFlameEmbers === 'function') {
+    if (this.torchSpotlight) {
+      this.torchSpotlight.x = handWorldX;
+      this.torchSpotlight.y = handWorldY - 2;
+      let beamAngle = (this.facing === 1) ? 0.05 : (Math.PI - 0.05);
+      if (this.isCrouching) {
+        beamAngle += this.facing * 0.14;
+      }
+      if (!this.onFloor) {
+        beamAngle += this.facing * Math.min(0.2, Math.max(-0.2, this.vy * 0.0004));
+      }
+      this.torchSpotlight.angle = beamAngle;
+      this.torchSpotlight.active = isLit;
+    }
+
+    if (this.torchFillLight) {
+      this.torchFillLight.x = this.x + this.w * 0.5;
+      this.torchFillLight.y = this.y + this.h * 0.55;
+      this.torchFillLight.active = isLit;
+    }
+
+    // Subtle atmospheric dust motes around flashlight lens when turned on
+    if (isLit && particles && typeof particles.spawnFlameEmbers === 'function') {
       this.emberTimer = (this.emberTimer || 0) + dt;
-      if (this.emberTimer >= 0.35) {
+      if (this.emberTimer >= 0.45) {
         this.emberTimer = 0;
-        const hand = this.getHandAnchor();
-        const emberX = this.x + this.w * 0.5 + this.facing * hand.x;
-        const emberY = this.y + this.h + hand.y - 8;
+        const emberX = handWorldX + this.facing * 10;
+        const emberY = handWorldY - 2;
         particles.spawnFlameEmbers(emberX, emberY, 1);
       }
     }
@@ -809,91 +857,125 @@ export class Player {
   }
 
   renderTorch(ctx, handX, handY) {
-    if (this.torchSpriteLoaded && this.torchSpriteImage) {
-      const CELL_SIZE = 64;
-      const PIVOT_X = 31;
-      const PIVOT_Y = 54;
-      const TORCH_SCALE = 0.32; // Proportional handheld lighter scale (~20px total cell)
+    if (!this.hasTorch || !this.lighterLit) return;
 
-      const col = (this.flameFrame || 0) % 8;
-      const sx = col * CELL_SIZE;
-      const sy = 0;
+    ctx.save();
+    ctx.translate(handX, handY);
 
-      const drawW = CELL_SIZE * TORCH_SCALE;
-      const drawH = CELL_SIZE * TORCH_SCALE;
-
-      // Draft wind tilt when moving horizontally
-      const windTilt = -(this.vx / 240) * 0.16;
-
-      ctx.save();
-      ctx.translate(handX, handY);
-
-      // Child's hand / sleeve cuff silhouette gripping the lighter
-      ctx.fillStyle = '#080a0e';
-      ctx.beginPath();
-      ctx.ellipse(-1.5, 1, 3.2, 2.5, -0.2, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (Math.abs(windTilt) > 0.01) {
-        ctx.rotate(windTilt);
-      }
-      ctx.drawImage(
-        this.torchSpriteImage,
-        sx, sy, CELL_SIZE, CELL_SIZE,
-        -PIVOT_X * TORCH_SCALE, -PIVOT_Y * TORCH_SCALE,
-        drawW, drawH
-      );
-      ctx.restore();
-    } else {
-      // Procedural fallback brass lighter casing & flame held at hand level
-      ctx.save();
-      ctx.translate(handX, handY);
-
-      // 1. Brass Lighter Case
-      ctx.fillStyle = '#2a221a';
-      ctx.fillRect(-2.5, -2, 5, 6);
-      ctx.strokeStyle = '#5a4834';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(-2.5, -2, 5, 6);
-
-      // Specular highlight
-      ctx.fillStyle = '#8c744b';
-      ctx.fillRect(-1.5, -1, 1, 4);
-
-      // Chimney & wick
-      ctx.fillStyle = '#202124';
-      ctx.fillRect(-1.5, -4, 3, 2);
-      ctx.fillStyle = '#141414';
-      ctx.fillRect(-0.5, -5.5, 1, 1.5);
-
-      // 2. Animated Flickering Flame
-      const flameNoise = Math.sin(this.animTime * 22) * 1.2;
-      const flameH = 9 + Math.sin(this.animTime * 18) * 1.5;
-      const flameY = -5.5;
-
-      const flameGrad = ctx.createRadialGradient(0, flameY - 3, 0, 0, flameY - 3, 7);
-      flameGrad.addColorStop(0, '#ffffff');
-      flameGrad.addColorStop(0.25, '#ffe044');
-      flameGrad.addColorStop(0.65, '#ff6611');
-      flameGrad.addColorStop(0.9, '#dd2200');
-      flameGrad.addColorStop(1, 'rgba(200, 20, 0, 0)');
-
-      ctx.fillStyle = flameGrad;
-      ctx.beginPath();
-      ctx.moveTo(-2.5, flameY);
-      ctx.quadraticCurveTo(0, flameY - flameH * 0.7 + flameNoise, flameNoise * 0.6, flameY - flameH);
-      ctx.quadraticCurveTo(0, flameY - flameH * 0.7 + flameNoise, 2.5, flameY);
-      ctx.closePath();
-      ctx.fill();
-
-      // Blue ignition root arc
-      ctx.fillStyle = 'rgba(60, 160, 255, 0.85)';
-      ctx.beginPath();
-      ctx.arc(0, flameY, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
+    // Draft wind tilt when moving horizontally
+    const windTilt = -(this.vx / 240) * 0.14;
+    if (Math.abs(windTilt) > 0.01) {
+      ctx.rotate(windTilt);
     }
+
+    // 1. Atmospheric Volumetric Light Cone on the canvas (soft forward illumination)
+    const coneLen = 135;
+    const coneHalfSpread = 26;
+    const coneGrad = ctx.createRadialGradient(8, -1, 0, coneLen * 0.65, -1, coneLen);
+    coneGrad.addColorStop(0, 'rgba(235, 245, 255, 0.28)');
+    coneGrad.addColorStop(0.35, 'rgba(215, 235, 255, 0.14)');
+    coneGrad.addColorStop(0.7, 'rgba(190, 220, 255, 0.05)');
+    coneGrad.addColorStop(1, 'rgba(190, 220, 255, 0)');
+
+    ctx.fillStyle = coneGrad;
+    ctx.beginPath();
+    ctx.moveTo(9, -2.5);
+    ctx.lineTo(coneLen, -coneHalfSpread);
+    ctx.lineTo(coneLen, coneHalfSpread);
+    ctx.lineTo(9, 2.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Floating micro-dust motes in flashlight beam
+    const t = this.animTime;
+    for (let i = 0; i < 4; i++) {
+      const moteX = 16 + ((t * 24 + i * 33) % 90);
+      const moteSpread = (moteX / coneLen) * coneHalfSpread * 0.75;
+      const moteY = -1 + Math.sin(t * 3.5 + i * 2.3) * moteSpread;
+      const moteAlpha = Math.sin((moteX / 110) * Math.PI) * 0.45;
+      ctx.fillStyle = `rgba(255, 255, 255, ${moteAlpha})`;
+      ctx.beginPath();
+      ctx.arc(moteX, moteY, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 2. Flashlight Body (Dark Matte Metal Industrial Casing)
+    // Barrel / Handle
+    ctx.fillStyle = '#10141a';
+    ctx.beginPath();
+    ctx.roundRect(-7, -2.2, 12, 4.4, 1.2);
+    ctx.fill();
+
+    // Knurled grip grooves
+    ctx.strokeStyle = '#222c3a';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-4, -2);
+    ctx.lineTo(-4, 2);
+    ctx.moveTo(-1, -2);
+    ctx.lineTo(-1, 2);
+    ctx.moveTo(2, -2);
+    ctx.lineTo(2, 2);
+    ctx.stroke();
+
+    // Specular barrel highlight
+    ctx.strokeStyle = '#4a596e';
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(-6, -1.8);
+    ctx.lineTo(4, -1.8);
+    ctx.stroke();
+
+    // Rear tail-cap
+    ctx.fillStyle = '#0a0d12';
+    ctx.fillRect(-8.5, -2, 1.8, 4);
+
+    // Front Flared Bezel / Reflector Head
+    ctx.fillStyle = '#26303f';
+    ctx.beginPath();
+    ctx.moveTo(5, -2.2);
+    ctx.lineTo(8.5, -3.8);
+    ctx.lineTo(9.5, -3.8);
+    ctx.lineTo(9.5, 3.8);
+    ctx.lineTo(8.5, 3.8);
+    ctx.lineTo(5, 2.2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Reflector inner bowl rim
+    ctx.fillStyle = '#50637d';
+    ctx.beginPath();
+    ctx.ellipse(8.8, 0, 1.2, 3.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3. Piercing Illuminated Glass Lens & Radial Glint
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(9.2, 0, 0.8, 3.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Intense lens flare core
+    const lensGlow = ctx.createRadialGradient(9.2, 0, 0, 9.2, 0, 7);
+    lensGlow.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    lensGlow.addColorStop(0.3, 'rgba(220, 240, 255, 0.6)');
+    lensGlow.addColorStop(1, 'rgba(180, 220, 255, 0)');
+    ctx.fillStyle = lensGlow;
+    ctx.beginPath();
+    ctx.arc(9.2, 0, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 4. Frail Boy Hand Gripping the Flashlight Casing
+    ctx.fillStyle = '#080a0e';
+    ctx.beginPath();
+    ctx.ellipse(-1.5, 0.5, 3.4, 2.6, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = '#080a0e';
+    ctx.beginPath();
+    ctx.arc(-1.5, -1.2, 1.8, Math.PI * 0.8, Math.PI * 2.2);
+    ctx.stroke();
+
+    ctx.restore();
   }
 
   render(ctx) {
@@ -952,8 +1034,8 @@ export class Player {
 
     ctx.drawImage(this.spriteImage, sx, sy, CELL_SIZE, CELL_SIZE, drawX, drawY, drawW, drawH);
 
-    // Dynamic lighter flame rendering when lit (anchored to hand position)
-    if (this.lighterLit) {
+    // Dynamic flashlight beam rendering when acquired and turned on
+    if (this.hasTorch && this.lighterLit) {
       const hand = this.getHandAnchor();
       this.renderTorch(ctx, hand.x, hand.y);
     }
@@ -961,95 +1043,116 @@ export class Player {
     ctx.restore();
   }
 
-  // Fallback Procedural Silhouette Character
+  // Fallback Procedural Silhouette Character: Subtly thin, frail boy (Limbo inspired)
   renderProcedural(ctx) {
     if (this.isDead) {
-      // Slumped silhouette on floor
+      // Slumped frail boy silhouette on floor
       ctx.save();
-      ctx.fillStyle = '#08090b';
+      ctx.fillStyle = '#060709';
       ctx.beginPath();
-      ctx.ellipse(this.x + this.w * 0.5, this.y + this.h - 6, 16, 7, 0, 0, Math.PI * 2);
+      ctx.ellipse(this.x + this.w * 0.5, this.y + this.h - 5, 14, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Messy hair tuft on floor
+      ctx.beginPath();
+      ctx.arc(this.x + this.w * 0.5 - this.facing * 9, this.y + this.h - 6, 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
       return;
     }
 
     if (this.isHanging) {
-      // Clinging to ledge pose: both arms reaching up clutching the lip, hooded silhouette dangling naturally
+      // Limbo boy clinging to ledge: slender frail arms clutching the lip, thin dangling body, scruffy hair, glowing eyes
       ctx.save();
       ctx.translate(this.x + this.w * 0.5, this.y + this.h);
 
       const topY = -this.h;
-      const bodyW = this.w * 0.75;
-      const lipX = this.facing * 9;
-      const lipY = topY - 4;
+      const lipX = this.facing * 8;
+      const lipY = topY - 3;
 
-      // 1. Back Dangling Leg
-      ctx.strokeStyle = '#080a0c';
-      ctx.lineWidth = 4;
+      // 1. Slender Dangling Legs
+      ctx.strokeStyle = '#06080b';
+      ctx.lineWidth = 2.8;
       ctx.lineCap = 'round';
+      // Back leg
       ctx.beginPath();
-      ctx.moveTo(-this.facing * 3, -14);
-      ctx.lineTo(-this.facing * 5, -2);
+      ctx.moveTo(-this.facing * 1.5, -12);
+      ctx.lineTo(-this.facing * 3.5, -1);
+      ctx.stroke();
+      // Front leg
+      ctx.beginPath();
+      ctx.moveTo(this.facing * 1.5, -12);
+      ctx.lineTo(this.facing * 2.5, -3);
       ctx.stroke();
 
-      // 2. Dangling Hooded Cloak Body
-      ctx.fillStyle = '#060709';
+      // 2. Frail Slender Boy Torso
+      ctx.fillStyle = '#080a0d';
       ctx.beginPath();
-      ctx.moveTo(this.facing * 2, topY + 8); // neck/shoulder
-      // Cloak back trailing slightly toward wall
-      ctx.quadraticCurveTo(-this.facing * bodyW * 0.9, topY + this.h * 0.5, -this.facing * bodyW * 0.6, -10);
-      // Hemline
-      ctx.lineTo(this.facing * bodyW * 0.5, -10);
-      // Front chest rising to chin
-      ctx.quadraticCurveTo(this.facing * bodyW * 0.7, topY + this.h * 0.45, this.facing * 5, topY + 12);
-      ctx.closePath();
+      ctx.roundRect(-this.facing * 2.5, topY + 12, 5, 15, [1.5, 1.5, 1, 1]);
       ctx.fill();
 
-      // 3. Front Dangling Leg (slightly forward)
-      ctx.beginPath();
-      ctx.moveTo(this.facing * 2, -14);
-      ctx.lineTo(this.facing * 3, -4);
-      ctx.stroke();
-
-      // 4. Arms Grasping Ledge Lip
-      ctx.strokeStyle = '#0e1219';
-      ctx.lineWidth = 4.5;
+      // 3. Slender Arms Grasping Ledge Lip
+      ctx.strokeStyle = '#080a0d';
+      ctx.lineWidth = 2.6;
       ctx.lineCap = 'round';
       // Back arm
       ctx.beginPath();
-      ctx.moveTo(-this.facing * 2, topY + 12);
-      ctx.quadraticCurveTo(lipX * 0.5, lipY + 4, lipX - this.facing * 3, lipY);
+      ctx.moveTo(-this.facing * 1.5, topY + 13);
+      ctx.lineTo(lipX - this.facing * 2, lipY);
       ctx.stroke();
       // Front arm
       ctx.beginPath();
-      ctx.moveTo(this.facing * 3, topY + 10);
-      ctx.quadraticCurveTo(lipX * 0.7, lipY + 2, lipX + this.facing * 2, lipY);
+      ctx.moveTo(this.facing * 1.5, topY + 13);
+      ctx.lineTo(lipX + this.facing * 1.5, lipY);
       ctx.stroke();
 
       // Hands gripping the lip
-      ctx.fillStyle = '#141a24';
+      ctx.fillStyle = '#06070a';
       ctx.beginPath();
-      ctx.arc(lipX, lipY, 3.5, 0, Math.PI * 2);
+      ctx.arc(lipX, lipY, 2.2, 0, Math.PI * 2);
       ctx.fill();
 
-      // 5. Hooded Head & Glowing White Eyes Peering Up at Ledge
-      const eyeX = this.facing * 4;
-      const eyeY = topY + 8;
+      // 4. Boy Head with Messy Scruffy Hair (Limbo Style)
+      const headX = this.facing * 1.5;
+      const headY = topY + 8;
+      ctx.fillStyle = '#06070a';
+      ctx.beginPath();
+      ctx.ellipse(headX, headY, 5.2, 5.8, this.facing * 0.15, 0, Math.PI * 2);
+      ctx.fill();
 
-      const eyeGlow = ctx.createRadialGradient(eyeX, eyeY, 0, eyeX, eyeY, 8);
+      // Scruffy hair tufts at back and crown
+      ctx.beginPath();
+      ctx.moveTo(headX - this.facing * 4, headY - 2);
+      ctx.lineTo(headX - this.facing * 7, headY - 4);
+      ctx.lineTo(headX - this.facing * 4.5, headY);
+      ctx.lineTo(headX - this.facing * 6.5, headY + 3);
+      ctx.lineTo(headX - this.facing * 3.5, headY + 4);
+      ctx.fill();
+
+      // Crown tufts
+      ctx.beginPath();
+      ctx.moveTo(headX - this.facing * 2, headY - 5);
+      ctx.lineTo(headX - this.facing * 2.5, headY - 8.5);
+      ctx.lineTo(headX, headY - 5.5);
+      ctx.lineTo(headX + this.facing * 1.5, headY - 8);
+      ctx.lineTo(headX + this.facing * 2.5, headY - 5);
+      ctx.fill();
+
+      // 5. Piercing White Glowing Eyes Looking Up at Ledge
+      const eyeX = headX + this.facing * 2.4;
+      const eyeY = headY - 1.2;
+
+      const eyeGlow = ctx.createRadialGradient(eyeX, eyeY, 0, eyeX, eyeY, 6);
       eyeGlow.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-      eyeGlow.addColorStop(0.4, 'rgba(230, 240, 255, 0.5)');
+      eyeGlow.addColorStop(0.35, 'rgba(220, 240, 255, 0.45)');
       eyeGlow.addColorStop(1, 'rgba(200, 220, 255, 0)');
-
       ctx.fillStyle = eyeGlow;
       ctx.beginPath();
-      ctx.arc(eyeX, eyeY, 5, 0, Math.PI * 2);
+      ctx.arc(eyeX, eyeY, 4.5, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.ellipse(eyeX, eyeY, 2.2, 1.6, -this.facing * 0.2, 0, Math.PI * 2);
+      ctx.ellipse(eyeX, eyeY, 1.8, 1.3, -this.facing * 0.25, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();
@@ -1062,63 +1165,108 @@ export class Player {
 
     const isMoving = Math.abs(this.vx) > 10 && this.onFloor;
     const stride = isMoving ? Math.sin(this.animTime * (this.isSprinting ? 18 : 12)) : 0;
-    const breathe = Math.sin(this.animTime * 3) * 1.5;
+    const breathe = Math.sin(this.animTime * 3) * 1.0;
+    const isCrouch = this.isCrouching || this.isSliding;
 
-    // 1. Back Leg Silhouette
-    ctx.strokeStyle = '#080a0c';
-    ctx.lineWidth = 4;
+    const topY = -this.h + (isCrouch ? 0 : breathe);
+
+    // 1. Back Slender Leg
+    ctx.strokeStyle = '#05070a';
+    ctx.lineWidth = 3.0;
     ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-this.facing * 3, -12);
-    ctx.lineTo(-this.facing * 3 - stride * 7, 0);
-    ctx.stroke();
+    if (isCrouch) {
+      // Bent crouch back leg
+      ctx.beginPath();
+      ctx.moveTo(-this.facing * 4, -10);
+      ctx.lineTo(-this.facing * 8, -4);
+      ctx.lineTo(-this.facing * 4, 0);
+      ctx.stroke();
+    } else {
+      // Standing / running back leg
+      ctx.beginPath();
+      ctx.moveTo(-this.facing * 2.5, -14);
+      ctx.lineTo(-this.facing * 2.5 - stride * 7.5, 0);
+      ctx.stroke();
+    }
 
-    // 2. Flowing Hooded Cloak Body
-    ctx.fillStyle = '#060709';
-    ctx.beginPath();
-    const topY = -this.h + breathe;
-    const bodyW = this.w * 0.75;
+    // 2. Frail Slender Boy Torso
+    ctx.fillStyle = '#080a0d';
+    if (isCrouch) {
+      // Arched forward crouch torso
+      ctx.beginPath();
+      ctx.roundRect(-this.facing * 6, -18, 12, 9, [3, 3, 2, 2]);
+      ctx.fill();
+    } else {
+      // Upright slender boy torso (slight natural waist taper)
+      ctx.beginPath();
+      ctx.roundRect(-this.facing * 3, topY + 13, 6.2, 17, [2, 2, 1, 1]);
+      ctx.fill();
+    }
 
-    ctx.moveTo(0, topY); // top of hood
-    // Curved back with trailing cape
-    const capeDrag = -this.facing * Math.min(12, Math.abs(this.vx) * 0.05);
-    ctx.quadraticCurveTo(-this.facing * (bodyW + 4) + capeDrag, topY + this.h * 0.5, -this.facing * bodyW + capeDrag * 1.2, -4);
-    // Cloak hemline
-    ctx.lineTo(this.facing * bodyW, -4);
-    // Front chest
-    ctx.quadraticCurveTo(this.facing * (bodyW * 0.6), topY + this.h * 0.4, 0, topY);
-    ctx.closePath();
+    // 3. Front Slender Leg
+    if (isCrouch) {
+      ctx.beginPath();
+      ctx.moveTo(this.facing * 2, -10);
+      ctx.lineTo(this.facing * 6, -4);
+      ctx.lineTo(this.facing * 3, 0);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(this.facing * 2.5, -14);
+      ctx.lineTo(this.facing * 2.5 + stride * 7.5, 0);
+      ctx.stroke();
+    }
+
+    // 4. Boy Head with Messy Scruffy Hair (Iconic Limbo Boy)
+    const headX = isCrouch ? this.facing * 5 : this.facing * 1.5;
+    const headY = isCrouch ? -16 : (topY + 8);
+
+    ctx.fillStyle = '#06070a';
+    ctx.beginPath();
+    ctx.ellipse(headX, headY, 5.4, 6.0, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 3. Front Leg Silhouette
+    // Scruffy hair tufts (messy spikes radiating backward & crown)
     ctx.beginPath();
-    ctx.moveTo(this.facing * 2, -12);
-    ctx.lineTo(this.facing * 2 + stride * 7, 0);
-    ctx.stroke();
+    // Back spikes
+    ctx.moveTo(headX - this.facing * 4, headY - 1);
+    ctx.lineTo(headX - this.facing * 7.5, headY - 3.5);
+    ctx.lineTo(headX - this.facing * 4.5, headY + 1);
+    ctx.lineTo(headX - this.facing * 7, headY + 3);
+    ctx.lineTo(headX - this.facing * 3.5, headY + 4);
+    ctx.fill();
 
-    // 4. Glowing White Eyes (Iconic Limbo Style)
-    const eyeX = this.facing * 4;
-    const eyeY = topY + 12;
+    // Top crown spikes
+    ctx.beginPath();
+    ctx.moveTo(headX - this.facing * 2.5, headY - 5);
+    ctx.lineTo(headX - this.facing * 3.5, headY - 9);
+    ctx.lineTo(headX - this.facing * 0.5, headY - 6);
+    ctx.lineTo(headX + this.facing * 1.5, headY - 9);
+    ctx.lineTo(headX + this.facing * 3, headY - 5.5);
+    ctx.fill();
 
-    // Subtle eye glow
-    const eyeGlow = ctx.createRadialGradient(eyeX, eyeY, 0, eyeX, eyeY, 8);
+    // 5. Piercing White Glowing Eyes (Limbo Style)
+    const eyeX = headX + this.facing * 2.6;
+    const eyeY = headY + 0.5;
+
+    // Soft eye glow aura
+    const eyeGlow = ctx.createRadialGradient(eyeX, eyeY, 0, eyeX, eyeY, 6.5);
     eyeGlow.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-    eyeGlow.addColorStop(0.4, 'rgba(230, 240, 255, 0.6)');
+    eyeGlow.addColorStop(0.35, 'rgba(220, 240, 255, 0.5)');
     eyeGlow.addColorStop(1, 'rgba(200, 220, 255, 0)');
-
     ctx.fillStyle = eyeGlow;
     ctx.beginPath();
-    ctx.arc(eyeX, eyeY, 6, 0, Math.PI * 2);
+    ctx.arc(eyeX, eyeY, 5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Piercing white eye slit
+    // Piercing white eye slit / circle
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.ellipse(eyeX, eyeY, 2.5, 1.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(eyeX, eyeY, 2.0, 1.5, this.facing * 0.1, 0, Math.PI * 2);
     ctx.fill();
 
-    // 5. Hand / Lighter Flame
-    if (this.lighterLit) {
+    // 6. Handheld Electric Flashlight 🔦
+    if (this.hasTorch && this.lighterLit) {
       const hand = this.getHandAnchor();
       ctx.save();
       ctx.scale(this.facing, 1);

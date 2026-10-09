@@ -8,7 +8,7 @@
 
 **UMBRA: The Hollow Maw** is a dark, atmospheric 2.5D cinematic puzzle-platformer blending the minimalist, high-contrast silhouette horror of *Limbo* with the claustrophobic dread, physical stealth, and grotesque creature evasion of *Little Nightmares*.
 
-The player controls **Nox**, a frail child in an oversized hooded shroud with glowing white eyes, navigating a desolate industrial forest and a sunken, rusted labyrinth known as **The Maw**. Survival depends not on combat, but on physics manipulation, timing, environmental stealth, and outsmarting horrific oversized predators.
+The player controls **Nox**, a frail, thin boy with tousled messy hair and piercing white glowing eyes (embodying the vulnerable silhouette horror of *Limbo*), navigating a desolate industrial forest and a sunken, rusted labyrinth known as **The Maw**. Survival depends not on combat, but on physics manipulation, timing, environmental stealth, and outsmarting horrific oversized predators.
 
 ---
 
@@ -17,7 +17,7 @@ The player controls **Nox**, a frail child in an oversized hooded shroud with gl
 ### 2.1 Atmospheric Art Direction (Chiaroscuro & Silhouettes)
 - **High-Contrast Silhouette Aesthetic**: Stark black silhouettes for interactables, foreground silhouettes for framing depth, and multiple grayscale parallax layers (fog, twisted trees, rusted gantry cranes, hanging chains).
 - **Dynamic Lighting & Shadow Raycasting**:
-  - Nox carries a flicking zippo lighter / lantern that casts 2D radial light with dynamic occlusion and soft shadow penumbra.
+  - **Electric Torch / Flashlight (🔦)**: Projects a powerful forward conical spotlight beam cutting through fog and darkness, with soft ambient silhouette backfill.
   - Swaying industrial halogen lamps, sweep searchlights, and environmental fires.
   - Glowing focal points: eyes of creatures, lit switches, bioluminescent fungi.
 - **Cinematic Shaders & Post-Processing**:
@@ -39,7 +39,7 @@ Built according to the `platformer` and `game-feel` skill guidelines:
   - **Grab & Push/Pull**: Dragging heavy wooden crates, metal carts, and weighted levers.
   - **Ledge Grab & Pull-Up**: Grabbing ledges when jumping short.
   - **Climb & Swing**: Climbing hanging ropes, chains, and rusted ladders; swinging to build momentum.
-  - **Lighter/Torch**: Flicking lighter on/off (lights dark areas, but attracts creatures in the dark).
+  - **Handheld Torch 🔦**: Finding the dropped torch in the dark, clicking it on/off with realistic beam mechanics.
 
 ### 2.3 Physical Puzzles & Environmental Traps (Limbo DNA)
 - **Bear Traps & Snapping Jaws**: Concealed traps that instantly snap shut; can be triggered safely by dragging a wooden crate or log into them.
@@ -88,12 +88,13 @@ Built according to the `game-ai` skill guidelines:
 ```mermaid
 flowchart LR
     subgraph Act1 [Act I: The Dark Woods]
-        A1[Wake in Misty Forest] --> A2[Basic Traversal & Log Push]
+        A0[Wake in Pitch Blackness] --> A1[Moonlight Shaft & Take Torch 🔦]
+        A1 --> A2[Basic Traversal & Log Push]
         A2 --> A3[Bear Trap Gauntlet & Disarm]
         A3 --> A4[Rope Swing over Chasm]
     end
     subgraph Act2 [Act II: The Rusted Maw]
-        B1[Descent into Factory] --> B2[Crawlway & Lighter Mechanics]
+        B1[Descent into Factory] --> B2[Crawlway & Torch Mechanics]
         B2 --> B3[Electric Water & Fuse Puzzle]
         B3 --> B4[Searchlight Tower Stealth]
     end
@@ -107,10 +108,8 @@ flowchart LR
 ```
 
 - **Act I: The Dark Woods (Limbo)**
-  - *Mood*: Melancholy, quiet forest, misty ground fog, towering pines.
-  - *Tutorial*: Moving, jumping, dragging wooden boxes, climbing ropes.
-  - *The Trap*: Discovering snapping steel bear traps; learning to push objects into traps to clear the path.
-  - *The Chasm*: Swinging on a frayed hanging rope across a spiked drop.
+  - *Cold-Open*: Nox wakes in pitch-black forest with no light. A pale moonbeam illuminates an old industrial torch on the ground.
+  - *The Ignition*: Picking up and switching on the torch pierces the fog, triggering the Act I title reveal and beginning the journey.
 - **Act II: The Rusted Maw (Little Nightmares)**
   - *Mood*: Gritty industrial, massive pipes, dripping oil, swinging halogen lights.
   - *Mechanics*: Using the lighter in pitch-black corridors; pulling circuit breakers to deactivate lethal electric water pools; sliding down drainage pipes.
